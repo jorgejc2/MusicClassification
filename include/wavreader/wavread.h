@@ -18,11 +18,7 @@ class wavFileReader {
 
     wavFileReader();
 
-    // wavFileReader(const char* filePath);
-
     ~wavFileReader();
-
-    void changeCurrFilePath(const char* filePath);
 
     int readFile(int8_t **wav_buffer, const char* fileIn, int display);
 
