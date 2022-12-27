@@ -2,7 +2,6 @@
 #include <math.h>
 #include <vector>
 #include <NumCpp.hpp>
-#include <boost>
 using namespace std;
 
 int main(int argc, char* argv[])
@@ -54,6 +53,12 @@ int main(int argc, char* argv[])
 
     for (int i = 0; i < 100; i++)
         printf("%.15f ", ts[i]);
+
+    /* now an attempt to create a linspace vector with NumCpp */
+    nc::NdArray<float> lin_test = nc::linspace<float>(0, M_PI*2*freq1, sample_rate);
+    printf("Size of numcpp array is : %d\n", lin_test.size());
+    for (int i = 0; i < 10; i++)
+        printf("%.13f ", lin_test[i]);
 
 
     return 0;
