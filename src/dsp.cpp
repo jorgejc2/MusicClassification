@@ -33,7 +33,7 @@ int dsp::create_spectogram(vector<float> *ts, int NFFT = 256, int noverlap = -1)
                 a += curr_ts * exp((img * two * curr_pi * curr_ks * curr_n)/curr_NFFT);
             }
 
-            calc = abs(a);
+            calc = 10*log10(abs(a)*2);
 
             xns[m][n] = calc;
         }
