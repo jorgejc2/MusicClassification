@@ -8,3 +8,9 @@ GTZAN/*
 
 # keep out vscode
 .vscode/
+
+# exclude everything in OutputText folder
+OutputText/*
+
+# keep .gitkeep in OutputText folder
+!OutputText/.gitkeep

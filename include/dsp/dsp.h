@@ -5,8 +5,11 @@
 #include <vector>
 #include <complex>
 #include <cmath>
+#include <chrono>
 
+using namespace std::chrono;
 using namespace std;
+
 typedef complex<float> dcomp;
 
 const dcomp img(0.0,1.0);

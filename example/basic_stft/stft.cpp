@@ -7,20 +7,6 @@ using namespace std;
 
 int main(int argc, char* argv[])
 {
-    // const char* filePath;
-    // string input;
-    // if (argc <= 1)
-    // {
-    //     cout << "Input wave file name: ";
-    //     cin >> input;
-    //     cin.get();
-    //     filePath = input.c_str();
-    // }
-    // else
-    // {
-    //     filePath = argv[1];
-    //     cout << "Input wave file name: " << filePath << endl;
-    // }
 
     int sample_rate = 4000;
     int length_ts_sec = 3;
