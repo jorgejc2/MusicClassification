@@ -5,3 +5,6 @@ GTZAN/*
 # keep .gitkeep in build folder so that the folder can be kept
 !build/.gitkeep
 !GTZAN/README.md
+
+# keep out vscode
+.vscode/
