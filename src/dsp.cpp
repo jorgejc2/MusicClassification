@@ -17,26 +17,29 @@ int dsp::create_spectogram(vector<float> *ts, int NFFT = 256, int noverlap = -1)
     printf("%ld computations will occur\n", starts.size() * (ts_size/2) * NFFT);
     auto start = high_resolution_clock::now();
     for (int m = 0; m < starts.size(); m++) {
-        for (int n = 0; n < ts_size/2; n++) {
-            dcomp a = 0;
-            float calc = 0.0;
-            int ts_offset = starts[m];
 
-            dcomp curr_n = n;
-            dcomp curr_NFFT = NFFT;
-            dcomp curr_pi = M_PI;
-            dcomp two = 2;
+        dsp::DFT_slow(ts, &ks, &(xns[m]), starts[m], NFFT);
 
-            for (int k = 0; k < NFFT; k++) {
-                dcomp curr_ts = (*ts)[ts_offset + k];
-                dcomp curr_ks = ks[k];
-                a += curr_ts * exp((img * two * curr_pi * curr_ks * curr_n)/curr_NFFT);
-            }
+        // for (int n = 0; n < ts_size/2; n++) {
+        //     dcomp a = 0;
+        //     float calc = 0.0;
+        //     int ts_offset = starts[m];
 
-            calc = 10*log10(abs(a)*2);
+        //     dcomp curr_n = n;
+        //     dcomp curr_NFFT = NFFT;
+        //     dcomp curr_pi = M_PI;
+        //     dcomp two = 2;
 
-            xns[m][n] = calc;
-        }
+        //     for (int k = 0; k < NFFT; k++) {
+        //         dcomp curr_ts = (*ts)[ts_offset + k];
+        //         dcomp curr_ks = ks[k];
+        //         a += curr_ts * exp((img * two * curr_pi * curr_ks * curr_n)/curr_NFFT);
+        //     }
+
+        //     calc = 10*log10(abs(a)*2);
+
+        //     xns[m][n] = calc;
+        // }
     }
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
@@ -51,4 +54,33 @@ int dsp::create_spectogram(vector<float> *ts, int NFFT = 256, int noverlap = -1)
     }
 
     return 0;
+}
+
+int dsp::DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT) {
+    int ts_size = ts->size();
+    for (int n = 0; n < ts_size/2; n++) {
+            dcomp a = 0;
+            float calc = 0.0;
+
+            dcomp curr_n = n;
+            dcomp curr_NFFT = NFFT;
+            dcomp curr_pi = M_PI;
+            dcomp two = 2;
+
+            for (int k = 0; k < NFFT; k++) {
+                dcomp curr_ts = (*ts)[ts_offset + k];
+                dcomp curr_ks = (*ks)[k];
+                a += curr_ts * exp((img * two * curr_pi * curr_ks * curr_n)/curr_NFFT);
+            }
+
+            calc = 10*log10(abs(a)*2);
+
+            (*xns)[n] = calc;
+    }
+    return -1;
+}
+
+int dsp::FFT(vector<float> *ts, int NFFT, int noverlap) {
+    
+    return -1;
 }

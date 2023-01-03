@@ -16,6 +16,10 @@ const dcomp img(0.0,1.0);
 
 namespace dsp {
     int create_spectogram(vector<float> *ts, int NFFT, int noverlap);
+
+    int DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT);
+
+    int FFT(vector<float> *ts, int NFFT, int noverlap);
 }
 
 #endif // _DSP_H_
