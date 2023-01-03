@@ -1,1 +1,1 @@
-project(MusicClassification)
+project(MusicClassification CXX CUDA)

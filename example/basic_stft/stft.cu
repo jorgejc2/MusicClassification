@@ -36,7 +36,10 @@ int main(int argc, char* argv[])
         printf("%.15f ", nc_ts[i]);
     
     /* if results above match that of Python, then move on to conducting a serial stft */
-    dsp::create_spectogram(&nc_ts, 256, -1);
+    // dsp::create_spectogram(&nc_ts, 256, -1);
+    int test_out = dsp::test_cuda();
+
+    printf("Test cuda returned with result: %d\n",test_out);
 
 
     return 0;

@@ -20,6 +20,12 @@ namespace dsp {
     int DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT);
 
     int FFT(vector<float> *ts, int NFFT, int noverlap);
+
+    __global__ void vector_add(float *out, float *a, float *b, int n);
+
+    __host__ void get_device_properties();
+
+    __host__ int test_cuda();
 }
 
 #endif // _DSP_H_

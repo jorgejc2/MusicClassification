@@ -1,7 +1,9 @@
-project(MusicClassification)
+project(MusicClassification CXX CUDA)
 
 add_library(wavreader wavread.cpp)
-add_library(dsp dsp.cpp)
+add_library(dsp dsp.cu)
+
+set_target_properties(dsp PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 
 target_include_directories(wavreader
     PUBLIC
