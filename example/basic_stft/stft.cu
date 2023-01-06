@@ -39,7 +39,21 @@ int main(int argc, char* argv[])
     // dsp::create_spectogram(&nc_ts, 256, -1);
     int test_out = dsp::test_cuda();
 
-    printf("Test cuda returned with result: %d\n",test_out);
+    int fft_size = 1024;
+
+    float* freqs = new float[fft_size];
+    float* cuda_samples = new float[fft_size];
+
+    for (int i = 0; i < fft_size; i++)
+        cuda_samples[i] = nc_ts[i];
+
+    dsp::FFT_Setup(cuda_samples, freqs, fft_size);
+
+    for (int i = 0; i < 32; i++)
+        printf("%.3f ", freqs[i]);
+
+    delete [] freqs;
+    delete [] cuda_samples;
 
 
     return 0;
