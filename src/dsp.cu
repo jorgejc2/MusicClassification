@@ -188,7 +188,7 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
     #define twiddle(i0) shmem[2*num_samples + i0]
 
     /* rearrange smaples into necessary order for FFT */
-    for(int i = 0; i < 4; i++) {
+    for(int i = 0; i < 8; i++) {
         // ERROR: cannot access reverse_table directly, must use constant memory
         // idx_arr[i] = dsp::reverse_table[(char)(tx >> (i*8))];
         idx_arr[i] = device_reverse_table[(0x000000FF) & (tx >> (i*8))];
@@ -215,19 +215,17 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
             twiddle_idx = (int)(((float)gs_idx / gs)*num_samples);
             /* this is the positive member of the pair*/
             /* NOTE: this will cause divergence, try and see if there is a way to prevent this */
-            if ( gs_idx < (gs/2) ) {
+            if ( (float)gs_idx < (1.0*gs/2) ) {
                 pair_tx = tx + (gs/2);
                 in(tx, !sw) = cuCadd(in(tx, sw), cuCmul(twiddle(twiddle_idx),in(pair_tx, sw)));
             }
             /* negative member */
             else {
                 pair_tx = tx - (gs/2);
-                in(tx, !sw) = cuCsub(in(tx, sw), cuCmul(twiddle(twiddle_idx),in(pair_tx, sw)));
+                in(tx, !sw) = cuCadd(in(pair_tx, sw), cuCmul(twiddle(twiddle_idx),in(tx, sw)));
             }
             gs *= 2; // number of elements in a group will double
             sw = !sw;
-            if (i == 2)
-                break;
         }
     }
 
@@ -235,14 +233,9 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
 
     /* return the magnitude as the final output */
     if (tx < num_samples) {
-        // freqs[tx] = log10(cuCabsf(in(tx)));
         freqs[tx] = in(tx, sw);
+        // freqs[tx] = make_cuDoubleComplex(1.0*input_idx, 0.0);
         exps[tx] = twiddle(tx);
-        // freqs[tx] = cuCabsf(twiddle(tx)); // debug by checking if factors are correct
-        // freqs[tx] = 1.0 * input_idx; // debug by checking if input idx is correct
-        // for (int i = 0; i < 4; i++) {
-        //     freqs[tx * 4 + i] = 1.0 * (unsigned int)idx_arr[i];
-        // }
     }
 
     #undef in
