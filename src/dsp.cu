@@ -96,7 +96,7 @@ __host__ int dsp::FFT(vector<float> *ts, int NFFT, int noverlap) {
     return -1;
 }
 
-#define N 10000000
+// #define N 10000000
 #define REVERSE_TABLE_SIZE 256
 
 __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
@@ -109,103 +109,141 @@ __global__ void dsp::vector_add(float *out, float *a, float *b, int n) {
 
 /* calculates the complex float exponent */
 __device__ __forceinline__ cuFloatComplex my_cexpf (cuFloatComplex z) {
-
     cuFloatComplex res;
-
     float t = expf (z.x);
-
     sincosf (z.y, &res.y, &res.x);
-
     res.x *= t;
-
     res.y *= t;
-
     return res;
-
 }
 
-__host__ void dsp::FFT_Setup(float* samples, float* freqs, int num_samples) {
+__device__ __forceinline__ cuDoubleComplex my_cexp (cuDoubleComplex z) {
+    cuDoubleComplex res;
+    double t = exp (z.x);
+    sincos (z.y, &res.y, &res.x);
+    res.x *= t;
+    res.y *= t;
+    return res;
+}
+
+__host__ void dsp::FFT_Setup(float* samples, cuDoubleComplex* freqs, int num_samples) {
 
     float* device_samples;
-    float* device_freqs;
+    cuDoubleComplex* device_freqs;
+    cuDoubleComplex* exps = (cuDoubleComplex*)malloc(num_samples * sizeof(cuDoubleComplex));
+    cuDoubleComplex* device_exps;
 
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, num_samples*sizeof(cuDoubleComplex)));
+    gpuErrchk(cudaMalloc((void**)&device_exps, num_samples*sizeof(cuDoubleComplex)));
 
-    gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(char)));
+    gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
 
     gpuErrchk(cudaMemcpy(device_samples, samples, num_samples*sizeof(float), cudaMemcpyHostToDevice));
 
     int maxThreads = dsp::get_thread_per_block();
 
-    dim3 blockDim(maxThreads > num_samples ? maxThreads : num_samples, 1, 1);
+    dim3 blockDim(maxThreads > num_samples ? num_samples : maxThreads, 1, 1);
     dim3 gridDim(ceil((float)num_samples / maxThreads), 1, 1);
+    cout<< "blockDim " << blockDim.x << endl;
+    cout << "gridDim " << gridDim.x << endl;
 
-    size_t shmemsize = num_samples * 2 * sizeof(cuFloatComplex);
+    size_t shmemsize = num_samples * 3 * sizeof(cuDoubleComplex);
 
-    FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, num_samples);
+    printf("Starting kernel with %d samples\n", num_samples);
+
+    FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, device_exps, num_samples);
 
     cudaDeviceSynchronize();
 
-    cudaMemcpy(freqs, device_freqs, num_samples*sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(freqs, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+    cudaMemcpy(exps, device_exps, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < 8; i++) {
+        // cout<< exps[i].x << " " <<exps[i].y << endl;
+        printf("%.17f %.17f\n", exps[i].x, exps[i].y);
+    }
+
+    free(exps);
+
+    cudaDeviceSynchronize();
 
     cudaFree(device_samples);
     cudaFree(device_freqs);
+    cudaFree(device_exps);
 
     return;
 }
 
 /* note that the max FFT size is limited to the max number of threads allowed in a thread block */
-__global__ void dsp::FFT_Kernel(float* samples, float* freqs, int num_samples) {
+__global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, cuDoubleComplex * __restrict__ exps, const int num_samples) {
     int tx = threadIdx.x;
-    char idx_arr[4];
-    int input_idx;
-    int bit_shift = log2f(num_samples); // also corresponds to number of stages 
-    extern __shared__ cuFloatComplex shmem []; // will be used to hold the inputs and 'twiddle' factors
+    unsigned char idx_arr[4];
+    unsigned int input_idx;
+    int bit_shift = (int)log2f((float)num_samples); // also corresponds to number of stages 
+    int sw = 0;
+    extern __shared__ cuDoubleComplex shmem []; // will be used to hold the inputs and 'twiddle' factors
 
-    #define in(i0) shmem[i0]
-    #define twiddle(i0) shmem[num_samples + i0]
+    #define in(i0, swi) shmem[swi*num_samples + i0]
+    #define twiddle(i0) shmem[2*num_samples + i0]
 
     /* rearrange smaples into necessary order for FFT */
     for(int i = 0; i < 4; i++) {
         // ERROR: cannot access reverse_table directly, must use constant memory
         // idx_arr[i] = dsp::reverse_table[(char)(tx >> (i*8))];
-        idx_arr[i] = device_reverse_table[(char)(tx >> (i*8))];
+        idx_arr[i] = device_reverse_table[(0x000000FF) & (tx >> (i*8))];
     }
 
-    input_idx = (int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]) >> bit_shift;
-
-    in(input_idx) = make_cuFloatComplex(samples[tx], 0.0); 
-    twiddle(tx) = my_cexpf(cuCdivf(cuCmulf(cuCmulf(cuCmulf(make_cuFloatComplex(0.0, 1.0), make_cuFloatComplex(2.0, 0.0)), make_cuFloatComplex(M_PI, 0.0)), make_cuFloatComplex(tx, 0.0)), make_cuFloatComplex(num_samples, 0.0)));
+    input_idx = (unsigned int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]);
+    input_idx = input_idx >> (32 - bit_shift);
+    
+    if (tx < num_samples) {
+        in(input_idx, sw) = make_cuDoubleComplex(samples[tx], 0.0); 
+        twiddle(tx) = my_cexp(cuCdiv(cuCmul(cuCmul(make_cuDoubleComplex(0.0, -2.0), make_cuDoubleComplex(M_PI, 0.0)), make_cuDoubleComplex(tx, 0.0)), make_cuDoubleComplex(num_samples, 0.0)));
+    }
 
     /* perform FFT in stages */
     int gs = 2; // the size of each DFT being computed, thus N/gs is the number of groups
     int gs_idx; // idx of thread in the group
     int twiddle_idx; // idx of twiddle factor
     int pair_tx; // the thread idx that the current thread must share data with
-    for (int i = 0; i < bit_shift; i++) {
-        __syncthreads();
-        gs_idx = tx % gs;
-        twiddle_idx = (gs_idx / gs)*N;
-        /* this is the positive member of the pair*/
-        /* NOTE: this will cause divergence, try and see if there is a way to prevent this */
-        if ( gs_idx < (gs/2) ) {
-            pair_tx = tx + (gs/2);
-            in(tx) = cuCaddf(in(tx), cuCmulf(twiddle(twiddle_idx),in(pair_tx)));
+    
+    if (tx < num_samples) {
+        for (int i = 0; i < bit_shift; i++) {
+            __syncthreads();
+            gs_idx = tx % gs;
+            twiddle_idx = (int)(((float)gs_idx / gs)*num_samples);
+            /* this is the positive member of the pair*/
+            /* NOTE: this will cause divergence, try and see if there is a way to prevent this */
+            if ( gs_idx < (gs/2) ) {
+                pair_tx = tx + (gs/2);
+                in(tx, !sw) = cuCadd(in(tx, sw), cuCmul(twiddle(twiddle_idx),in(pair_tx, sw)));
+            }
+            /* negative member */
+            else {
+                pair_tx = tx - (gs/2);
+                in(tx, !sw) = cuCsub(in(tx, sw), cuCmul(twiddle(twiddle_idx),in(pair_tx, sw)));
+            }
+            gs *= 2; // number of elements in a group will double
+            sw = !sw;
+            if (i == 2)
+                break;
         }
-        /* negative member */
-        else {
-            pair_tx = tx - (gs/2);
-            in(tx) = cuCsubf(in(tx), cuCmulf(twiddle(twiddle_idx),in(pair_tx)));
-        }
-        gs *= 2; // number of elements in a group will double
     }
 
     __syncthreads();
 
     /* return the magnitude as the final output */
-    if (tx < num_samples)
-        freqs[tx] = log10(cuCabsf(in(tx)));
+    if (tx < num_samples) {
+        // freqs[tx] = log10(cuCabsf(in(tx)));
+        freqs[tx] = in(tx, sw);
+        exps[tx] = twiddle(tx);
+        // freqs[tx] = cuCabsf(twiddle(tx)); // debug by checking if factors are correct
+        // freqs[tx] = 1.0 * input_idx; // debug by checking if input idx is correct
+        // for (int i = 0; i < 4; i++) {
+        //     freqs[tx * 4 + i] = 1.0 * (unsigned int)idx_arr[i];
+        // }
+    }
 
     #undef in
     #undef twiddle
@@ -230,7 +268,7 @@ __host__ void dsp::get_device_properties()
         std::cout<<"Max block dimensions: "<<deviceProp.maxThreadsDim[0]<<" x, "<<deviceProp.maxThreadsDim[1]<<" y, "<<deviceProp.maxThreadsDim[2]<<" z"<<std::endl;
         std::cout<<"Max grid dimensions: "<<deviceProp.maxGridSize[0]<<" x, "<<deviceProp.maxGridSize[1]<<" y, "<<deviceProp.maxGridSize[2]<<" z"<<std::endl;
         std::cout<<"Warp Size: "<<deviceProp.warpSize<<std::endl;
-        std::cout<<"Size of cuFloatComplex: "<<sizeof(cuFloatComplex)<<endl;
+        std::cout<<"Size of cuDoubleComplex: "<<sizeof(cuDoubleComplex)<<endl;
     }
 }
 
@@ -241,43 +279,43 @@ __host__ int dsp::get_thread_per_block() {
     return deviceProp.maxThreadsPerBlock;
 }
 
-__host__ int dsp::test_cuda(){
-    float *a, *b, *out;
-    float *d_a, *d_b, *d_out;
+// __host__ int dsp::test_cuda(){
+//     float *a, *b, *out;
+//     float *d_a, *d_b, *d_out;
 
-    a = (float*)malloc(sizeof(float) * N);
-    b = (float*)malloc(sizeof(float) * N);
-    out = (float*)malloc(sizeof(float) * N);
-    for (int i = 0; i < N; i++) {
-	    *(a + i) = 1.0;
-	    *(b + i) = 1.0;
-    }
+//     a = (float*)malloc(sizeof(float) * N);
+//     b = (float*)malloc(sizeof(float) * N);
+//     out = (float*)malloc(sizeof(float) * N);
+//     for (int i = 0; i < N; i++) {
+// 	    *(a + i) = 1.0;
+// 	    *(b + i) = 1.0;
+//     }
 
-    // Allocate device memory for a
-    cudaMalloc((void**)&d_a, sizeof(float) * N);
-    cudaMalloc((void**)&d_b, sizeof(float) *N);
-    cudaMalloc((void**)&d_out, sizeof(float) *N);
+//     // Allocate device memory for a
+//     cudaMalloc((void**)&d_a, sizeof(float) * N);
+//     cudaMalloc((void**)&d_b, sizeof(float) *N);
+//     cudaMalloc((void**)&d_out, sizeof(float) *N);
 
-    // Transfer data from host to device memory
-    cudaMemcpy(d_a, a, sizeof(float) * N, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_b, b, sizeof(float) * N, cudaMemcpyHostToDevice);
-    dim3 gridDim(ceil(1.0*N/1024), 1, 1);
-    dim3 blockDim(1024, 1, 1);
-    vector_add<<<gridDim,blockDim>>>(d_out, d_a, d_b, N);
-    cudaDeviceSynchronize();
-    cudaMemcpy(out, d_out, sizeof(float) * N, cudaMemcpyDeviceToHost);
-    for (int i = 0; i < 10; i++)
-	    printf("%f ", *(out + i));
+//     // Transfer data from host to device memory
+//     cudaMemcpy(d_a, a, sizeof(float) * N, cudaMemcpyHostToDevice);
+//     cudaMemcpy(d_b, b, sizeof(float) * N, cudaMemcpyHostToDevice);
+//     dim3 gridDim(ceil(1.0*N/1024), 1, 1);
+//     dim3 blockDim(1024, 1, 1);
+//     vector_add<<<gridDim,blockDim>>>(d_out, d_a, d_b, N);
+//     cudaDeviceSynchronize();
+//     cudaMemcpy(out, d_out, sizeof(float) * N, cudaMemcpyDeviceToHost);
+//     for (int i = 0; i < 10; i++)
+// 	    printf("%f ", *(out + i));
    
-    get_device_properties();
-    // Cleanup after kernel execution
-    cudaFree(d_a);
-    cudaFree(d_b);
-    cudaFree(d_out);
+//     get_device_properties();
+//     // Cleanup after kernel execution
+//     cudaFree(d_a);
+//     cudaFree(d_b);
+//     cudaFree(d_out);
 
-    free(a);
-    free(b);
-    free(out);
+//     free(a);
+//     free(b);
+//     free(out);
 
-    return 1;
-}
+//     return 1;
+// }

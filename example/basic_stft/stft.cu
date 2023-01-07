@@ -37,23 +37,30 @@ int main(int argc, char* argv[])
     
     /* if results above match that of Python, then move on to conducting a serial stft */
     // dsp::create_spectogram(&nc_ts, 256, -1);
-    int test_out = dsp::test_cuda();
+    // int test_out = dsp::test_cuda();
 
-    int fft_size = 1024;
+    int fft_size = 8;
 
-    float* freqs = new float[fft_size];
-    float* cuda_samples = new float[fft_size];
+    cuDoubleComplex* freqs = (cuDoubleComplex*)malloc(sizeof(cuDoubleComplex) * fft_size);
+    float* cuda_samples = (float*)malloc(sizeof(float) * fft_size);;
+    if (freqs == nullptr || cuda_samples == nullptr) {
+        printf("failed allocatin \n");
+        return 1;
+    }
 
     for (int i = 0; i < fft_size; i++)
-        cuda_samples[i] = nc_ts[i];
+        cuda_samples[i] = i;
 
     dsp::FFT_Setup(cuda_samples, freqs, fft_size);
 
-    for (int i = 0; i < 32; i++)
-        printf("%.3f ", freqs[i]);
+    for (int i = 0; i < 8; i++)
+        printf("%f + i%f\n", freqs[i].x, freqs[i].y);
+        // printf("%.3f ", freqs[i]);
 
-    delete [] freqs;
-    delete [] cuda_samples;
+    // delete [] freqs;
+    // delete [] cuda_samples;
+    free(freqs);
+    free(cuda_samples);
 
 
     return 0;

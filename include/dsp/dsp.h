@@ -48,7 +48,7 @@ namespace dsp {
         0x07, 0x87, 0x47, 0xc7, 0x27, 0xa7, 0x67, 0xe7,
         0x17, 0x97, 0x57, 0xd7, 0x37, 0xb7, 0x77, 0xf7,
         0x0f, 0x8f, 0x4f, 0xcf, 0x2f, 0xaf, 0x6f, 0xef,
-        0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff,
+        0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
     };
 
     __host__ int create_spectogram(vector<float> *ts, int NFFT, int noverlap);
@@ -59,15 +59,15 @@ namespace dsp {
 
     __global__ void vector_add(float *out, float *a, float *b, int n);
 
-    __host__ void FFT_Setup(float* samples, float* freqs, int num_samples);
+    __host__ void FFT_Setup(float* samples, cuDoubleComplex* freqs, int num_samples);
 
-    __global__ void FFT_Kernel(float* samples, float* freqs, int num_samples);
+    __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, cuDoubleComplex * __restrict__ exps, const int num_samples);
 
     __host__ void get_device_properties();
 
     __host__ int get_thread_per_block();
 
-    __host__ int test_cuda();
+    // __host__ int test_cuda();
 }
 
 #endif // _DSP_H_
