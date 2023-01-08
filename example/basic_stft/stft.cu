@@ -86,8 +86,15 @@ int main(int argc, char* argv[])
     free(cuda_samples);
     #endif
 
+    /* perform STFT  on cpu */
+    #if (IMPLEMENTATION == 3)
+
+    #endif
+
+    /* perform STFT on gpu */
     #if (IMPLEMENTATION == 4) 
     int num_samples = nc_ts.size();
+    printf("Working with %d samples\n", num_samples);
     int NFFT = 256;
     int noverlap = -1;
     float* cuda_samples = (float*)malloc(num_samples*sizeof(float));
