@@ -192,17 +192,16 @@ __device__ __forceinline__ cuDoubleComplex my_cexp (cuDoubleComplex z) {
 
 __host__ int dsp::cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples) {
 
+    /* create device pointers */
     float* device_samples;
     cuDoubleComplex* device_freqs;
 
     /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
     gpuErrchk(cudaMalloc((void**)&device_freqs, num_samples*sizeof(cuDoubleComplex)));
-
     size_t shmemsize = num_samples * 2.5 * sizeof(cuDoubleComplex);
 
     /* copy data to device and constant memory */
-
     gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
     gpuErrchk(cudaMemcpy(device_samples, samples, num_samples*sizeof(float), cudaMemcpyHostToDevice));
 
@@ -213,11 +212,9 @@ __host__ int dsp::cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples)
     dim3 gridDim(ceil((float)num_samples / maxThreads), 1, 1);
 
     /* kernel invocation */
-
     FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, num_samples);
 
     /* synchronize and copy data back to host */
-
     cudaDeviceSynchronize();
     cudaMemcpy(freqs, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
 
@@ -231,16 +228,17 @@ __host__ int dsp::cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples)
 /* note that the max FFT size is limited to the max number of threads allowed in a thread block */
 __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples) {
     int tx = threadIdx.x;
-    unsigned char idx_arr[4];
-    unsigned int input_idx;
+    unsigned char idx_arr[4]; // character array used to create input_idx
+    unsigned int input_idx; // sample index each thread is responsible for loading to shared memory 
     int bit_shift = (int)log2f((float)num_samples); // also corresponds to number of stages 
-    int sw = 0;
-    extern __shared__ cuDoubleComplex shmem []; // will be used to hold the inputs and 'twiddle' factors
+    int sw = 0; // flag for alternating computational buffers 
+    extern __shared__ cuDoubleComplex shmem []; // will be used to hold the inputs/computations and 'twiddle' factors
 
+    /* defines for simpler access to shared memory */
     #define in(i0, swi) shmem[swi*num_samples + i0]
     #define twiddle(i0) shmem[2*num_samples + i0]
 
-    /* rearrange smaples into necessary order for FFT */
+    /* rearrange samples into necessary order in shared memory */
     for(int i = 0; i < 4; i++)
         idx_arr[i] = device_reverse_table[(0x000000FF) & (tx >> (i*8))];
 
@@ -288,6 +286,126 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
     /* return the magnitude as the final output */
     if (tx < num_samples) 
         freqs[tx] = in(tx, sw);
+
+    #undef in
+    #undef twiddle
+}
+
+__host__ int dsp::cuSTFT(float* samples, cuDoubleComplex** freqs, int num_samples, int NFFT, int noverlap = -1) {
+
+    /* default noverlap */
+    if (noverlap < 0)
+        noverlap = NFFT / 2;
+
+    int step = NFFT - noverlap;
+    int num_ffts = ceil((float)num_samples/step);
+
+    /* trim FFT's that are out of bounds */
+    while ( num_ffts * step >= num_samples )
+        num_ffts--;
+
+    int xns_size = num_ffts * NFFT;
+    cuDoubleComplex* xns = (cuDoubleComplex*)malloc(xns_size*sizeof(cuDoubleComplex));
+
+    /* create device pointers */
+    float* device_samples;
+    cuDoubleComplex* device_freqs;
+
+    /* allocate memory for device and shared memory */
+    gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(cuDoubleComplex)));
+    size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
+
+    /* copy data to device and constant memory */
+    gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
+    gpuErrchk(cudaMemcpy(device_samples, samples, num_samples*sizeof(float), cudaMemcpyHostToDevice));
+
+    /* get max threads per block and create dimensions */
+    int maxThreads = dsp::get_thread_per_block();
+
+    // FIX DIMENSIONS
+    dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
+    dim3 gridDim(num_ffts, 1, 1);
+
+    /* kernel invocation */
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, NFFT, step);
+
+    /* synchronize and copy data back to host */
+    cudaDeviceSynchronize();
+    cudaMemcpy(xns, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+
+    /* free memory */
+    cudaFree(device_samples);
+    cudaFree(device_freqs);
+
+    *freqs = xns;
+
+    return xns_size;
+}
+
+/* note that the max FFT size is limited to the max number of threads allowed in a thread block */
+__global__ void dsp::STFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples, int step) {
+    // NOTE; here num_samples is equivalent to NFFT not that actual number of total samples
+    int tx = threadIdx.x;
+    int bx = blockIdx.x;
+    unsigned char idx_arr[4]; // character array used to create input_idx
+    unsigned int input_idx; // sample index each thread is responsible for loading to shared memory 
+    int bit_shift = (int)log2f((float)num_samples); // also corresponds to number of stages 
+    int sw = 0; // flag for alternating computational buffers 
+    extern __shared__ cuDoubleComplex shmem []; // will be used to hold the inputs/computations and 'twiddle' factors
+
+    /* defines for simpler access to shared memory */
+    #define in(i0, swi) shmem[swi*num_samples + i0]
+    #define twiddle(i0) shmem[2*num_samples + i0]
+
+    /* rearrange samples into necessary order in shared memory */
+    for(int i = 0; i < 4; i++)
+        idx_arr[i] = device_reverse_table[(0x000000FF) & (tx >> (i*8))];
+
+    input_idx = (unsigned int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]);
+    input_idx = input_idx >> (32 - bit_shift);
+    
+    /* copy inputs to shared memory */
+    if (tx < num_samples)
+        in(input_idx, sw) = make_cuDoubleComplex(samples[tx + bx*step], 0.0); 
+
+    /* only need half the twiddle factors since they are symmetric */
+    if (tx < num_samples/2)
+        twiddle(tx) = my_cexp(cuCdiv(cuCmul(cuCmul(make_cuDoubleComplex(0.0, -2.0), make_cuDoubleComplex(M_PI, 0.0)), make_cuDoubleComplex(tx, 0.0)), make_cuDoubleComplex(num_samples, 0.0)));
+
+    /* perform FFT in stages */
+    int gs = 2; // the size of each DFT being computed, thus N/gs is the number of groups
+    int gs_idx; // idx of thread in the group
+    int twiddle_idx; // idx of twiddle factor
+    int pair_tx; // the thread idx that the current thread must share data with
+    
+    if (tx < num_samples) {
+        for (int i = 0; i < bit_shift; i++) {
+            __syncthreads();
+            gs_idx = tx % gs;
+            /* this is the positive member of the pair*/
+            /* NOTE: this will cause divergence, try and see if there is a way to prevent this */
+            if ( (float)gs_idx < (1.0*gs/2) ) {
+                pair_tx = tx + (gs/2);
+                twiddle_idx = (int)(((float)gs_idx / gs)*num_samples);
+                in(tx, !sw) = cuCadd(in(tx, sw), cuCmul(twiddle(twiddle_idx),in(pair_tx, sw)));
+            }
+            /* negative member */
+            else {
+                pair_tx = tx - (gs/2);
+                twiddle_idx = (int)((((float)gs_idx - gs/2) / gs)*num_samples);
+                in(tx, !sw) = cuCsub(in(pair_tx, sw), cuCmul(twiddle(twiddle_idx),in(tx, sw)));
+            }
+            gs *= 2; // number of elements in a group will double
+            sw = !sw;
+        }
+    }
+
+    __syncthreads();
+
+    /* return the magnitude as the final output */
+    if (tx < num_samples) 
+        freqs[tx + bx*num_samples] = in(tx, sw);
 
     #undef in
     #undef twiddle

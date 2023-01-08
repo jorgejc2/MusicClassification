@@ -5,6 +5,8 @@
 #include <NumCpp.hpp>
 using namespace std;
 
+#define IMPLEMENTATION 4  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
+
 int main(int argc, char* argv[])
 {
 
@@ -37,12 +39,11 @@ int main(int argc, char* argv[])
     
     /* if results above match that of Python, then move on to conducting a serial stft */
     // dsp::create_spectogram(&nc_ts, 256, -1);
-    // int test_out = dsp::test_cuda();
 
+    /* perform simple FFT test on cpu */
+    #if (IMPLEMENTATION == 1)
     int fft_size = 1024;
-
-    cuDoubleComplex* freqs = (cuDoubleComplex*)malloc(sizeof(cuDoubleComplex) * fft_size);
-    // complex<double>* freqs = (complex<double>*)malloc(sizeof(complex<double>) * fft_size);
+    complex<double>* freqs = (complex<double>*)malloc(sizeof(complex<double>) * fft_size);
     float* cuda_samples = (float*)malloc(sizeof(float) * fft_size);
 
 
@@ -51,18 +52,63 @@ int main(int argc, char* argv[])
 
     
     auto start = high_resolution_clock::now();
+    dsp::FFT(cuda_samples, freqs, fft_size);
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Execution time: " << duration.count() << endl;
+
+    for (int i = 0; i < 8; i++)
+        printf("%f + i%f\n", real(freqs[i]), imag(freqs[i]));
+
+    free(freqs);
+    free(cuda_samples);
+    #endif
+
+    /* perform simple FFT on gpu */
+    #if (IMPLEMENTATION == 2)
+    int fft_size = 1024;
+    cuDoubleComplex* freqs = (cuDoubleComplex*)malloc(sizeof(cuDoubleComplex) * fft_size);
+    float* cuda_samples = (float*)malloc(sizeof(float) * fft_size);
+
+    for (int i = 0; i < fft_size; i++)
+        cuda_samples[i] = i;
+
+    auto start = high_resolution_clock::now();
     dsp::cuFFT(cuda_samples, freqs, fft_size);
-    // dsp::FFT(cuda_samples, freqs, fft_size);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Execution time: " << duration.count() << endl;
 
     for (int i = 0; i < 8; i++)
         printf("%f + i%f\n", freqs[i].x, freqs[i].y);
-        // printf("%f + i%f\n", real(freqs[i]), imag(freqs[i]));
 
     free(freqs);
     free(cuda_samples);
+    #endif
+
+    #if (IMPLEMENTATION == 4) 
+    int num_samples = nc_ts.size();
+    int NFFT = 256;
+    int noverlap = -1;
+    float* cuda_samples = (float*)malloc(num_samples*sizeof(float));
+    cuDoubleComplex** freqs;
+
+    for (int i = 0; i < num_samples; i++)
+        cuda_samples[i] = nc_ts[i];
+
+    auto start = high_resolution_clock::now();
+    dsp::cuSTFT(cuda_samples, freqs, num_samples, NFFT, noverlap);
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Execution time: " << duration.count() << endl;
+
+    for (int i = 0; i < 8; i++)
+        printf("%f + i%f\n", (*freqs)[i].x, (*freqs)[i].y);
+
+    free(*freqs);
+    free(cuda_samples);
+
+    #endif
 
 
     return 0;

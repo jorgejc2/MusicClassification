@@ -62,6 +62,10 @@ namespace dsp {
     __host__ int cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples);
 
     __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples);
+    
+    __host__ int cuSTFT(float* samples, cuDoubleComplex** freqs, int num_samples, int NFFT, int noverlap);
+
+    __global__ void STFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples, int step);
 
     __host__ void get_device_properties();
 
