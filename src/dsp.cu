@@ -91,9 +91,73 @@ __host__ int dsp::DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float
 }
 
 /* this will be the serial CPU FFT version which should display speed up over DFT_slow */
-__host__ int dsp::FFT(vector<float> *ts, int NFFT, int noverlap) {
+__host__ void dsp::FFT(const float* samples, complex<double>* freqs, const int num_samples) {
 
-    return -1;
+    unsigned char idx_arr[4];
+    unsigned int input_idx;
+    int bit_shift = (int)log2((float)num_samples); // also corresponds to number of stages 
+    int sw = 0;
+    // complex<double> shmem [num_samples * 2.5];
+    complex<double>* shmem = (complex<double>*)malloc(num_samples * 2.5 * sizeof(complex<double>));
+
+    #define in(i0, swi) shmem[swi*num_samples + i0]
+    #define twiddle(i0) shmem[2*num_samples + i0]
+
+    for (int tx = 0; tx < num_samples; tx++) {
+
+        /* rearrange smaples into necessary order for FFT */
+        for(int i = 0; i < 4; i++)
+            idx_arr[i] = dsp::reverse_table[(0x000000FF) & (tx >> (i*8))];
+
+        input_idx = (unsigned int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]);
+        input_idx = input_idx >> (32 - bit_shift);
+        
+        /* copy inputs to shared memory */
+        if (tx < num_samples)
+            in(input_idx, sw) = complex<double>(samples[tx], 0.0); 
+
+        /* only need half the twiddle factors since they are symmetric */
+        if (tx < num_samples/2)
+            twiddle(tx) = exp((complex<double>(0.0, -2.0) * complex<double>(M_PI, 0.0) * complex<double>(tx, 0.0)) /  complex<double>(num_samples, 0.0));
+
+    }
+
+    /* perform FFT in stages */
+    int gs = 2; // the size of each DFT being computed, thus N/gs is the number of groups
+    int gs_idx; // idx of thread in the group
+    int twiddle_idx; // idx of twiddle factor
+    int pair_tx; // the thread idx that the current thread must share data with
+    
+    for (int i = 0; i < bit_shift; i++) {
+        for (int tx = 0; tx < num_samples; tx++) {
+                gs_idx = tx % gs;
+                /* this is the positive member of the pair*/
+                /* NOTE: this will cause divergence, try and see if there is a way to prevent this */
+                if ( (float)gs_idx < (1.0*gs/2) ) {
+                    pair_tx = tx + (gs/2);
+                    twiddle_idx = (int)(((float)gs_idx / gs)*num_samples);
+                    in(tx, !sw) = in(tx, sw) + twiddle(twiddle_idx) * in(pair_tx, sw);
+                }
+                /* negative member */
+                else {
+                    pair_tx = tx - (gs/2);
+                    twiddle_idx = (int)((((float)gs_idx - gs/2) / gs)*num_samples);
+                    in(tx, !sw) = in(pair_tx, sw) - twiddle(twiddle_idx) * in(tx, sw);
+                }
+            }
+        gs *= 2; // number of elements in a group will double
+        sw = !sw;
+        }
+
+    for (int tx = 0; tx < num_samples; tx++)
+        freqs[tx] = in(tx, sw);
+
+    free(shmem);
+    
+    return;
+
+    #undef in
+    #undef twiddle
 }
 
 // #define N 10000000
@@ -126,57 +190,46 @@ __device__ __forceinline__ cuDoubleComplex my_cexp (cuDoubleComplex z) {
     return res;
 }
 
-__host__ void dsp::FFT_Setup(float* samples, cuDoubleComplex* freqs, int num_samples) {
+__host__ int dsp::cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples) {
 
     float* device_samples;
     cuDoubleComplex* device_freqs;
-    cuDoubleComplex* exps = (cuDoubleComplex*)malloc(num_samples * sizeof(cuDoubleComplex));
-    cuDoubleComplex* device_exps;
 
+    /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
     gpuErrchk(cudaMalloc((void**)&device_freqs, num_samples*sizeof(cuDoubleComplex)));
-    gpuErrchk(cudaMalloc((void**)&device_exps, num_samples*sizeof(cuDoubleComplex)));
+
+    size_t shmemsize = num_samples * 2.5 * sizeof(cuDoubleComplex);
+
+    /* copy data to device and constant memory */
 
     gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
-
     gpuErrchk(cudaMemcpy(device_samples, samples, num_samples*sizeof(float), cudaMemcpyHostToDevice));
 
+    /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
 
     dim3 blockDim(maxThreads > num_samples ? num_samples : maxThreads, 1, 1);
     dim3 gridDim(ceil((float)num_samples / maxThreads), 1, 1);
-    cout<< "blockDim " << blockDim.x << endl;
-    cout << "gridDim " << gridDim.x << endl;
 
-    size_t shmemsize = num_samples * 3 * sizeof(cuDoubleComplex);
+    /* kernel invocation */
 
-    printf("Starting kernel with %d samples\n", num_samples);
+    FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, num_samples);
 
-    FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, device_exps, num_samples);
+    /* synchronize and copy data back to host */
 
     cudaDeviceSynchronize();
-
     cudaMemcpy(freqs, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
-    cudaMemcpy(exps, device_exps, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
 
-    for (int i = 0; i < 8; i++) {
-        // cout<< exps[i].x << " " <<exps[i].y << endl;
-        printf("%.17f %.17f\n", exps[i].x, exps[i].y);
-    }
-
-    free(exps);
-
-    cudaDeviceSynchronize();
-
+    /* free memory */
     cudaFree(device_samples);
     cudaFree(device_freqs);
-    cudaFree(device_exps);
 
-    return;
+    return maxThreads;
 }
 
 /* note that the max FFT size is limited to the max number of threads allowed in a thread block */
-__global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, cuDoubleComplex * __restrict__ exps, const int num_samples) {
+__global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples) {
     int tx = threadIdx.x;
     unsigned char idx_arr[4];
     unsigned int input_idx;
@@ -188,19 +241,19 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
     #define twiddle(i0) shmem[2*num_samples + i0]
 
     /* rearrange smaples into necessary order for FFT */
-    for(int i = 0; i < 8; i++) {
-        // ERROR: cannot access reverse_table directly, must use constant memory
-        // idx_arr[i] = dsp::reverse_table[(char)(tx >> (i*8))];
+    for(int i = 0; i < 4; i++)
         idx_arr[i] = device_reverse_table[(0x000000FF) & (tx >> (i*8))];
-    }
 
     input_idx = (unsigned int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]);
     input_idx = input_idx >> (32 - bit_shift);
     
-    if (tx < num_samples) {
+    /* copy inputs to shared memory */
+    if (tx < num_samples)
         in(input_idx, sw) = make_cuDoubleComplex(samples[tx], 0.0); 
+
+    /* only need half the twiddle factors since they are symmetric */
+    if (tx < num_samples/2)
         twiddle(tx) = my_cexp(cuCdiv(cuCmul(cuCmul(make_cuDoubleComplex(0.0, -2.0), make_cuDoubleComplex(M_PI, 0.0)), make_cuDoubleComplex(tx, 0.0)), make_cuDoubleComplex(num_samples, 0.0)));
-    }
 
     /* perform FFT in stages */
     int gs = 2; // the size of each DFT being computed, thus N/gs is the number of groups
@@ -212,17 +265,18 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
         for (int i = 0; i < bit_shift; i++) {
             __syncthreads();
             gs_idx = tx % gs;
-            twiddle_idx = (int)(((float)gs_idx / gs)*num_samples);
             /* this is the positive member of the pair*/
             /* NOTE: this will cause divergence, try and see if there is a way to prevent this */
             if ( (float)gs_idx < (1.0*gs/2) ) {
                 pair_tx = tx + (gs/2);
+                twiddle_idx = (int)(((float)gs_idx / gs)*num_samples);
                 in(tx, !sw) = cuCadd(in(tx, sw), cuCmul(twiddle(twiddle_idx),in(pair_tx, sw)));
             }
             /* negative member */
             else {
                 pair_tx = tx - (gs/2);
-                in(tx, !sw) = cuCadd(in(pair_tx, sw), cuCmul(twiddle(twiddle_idx),in(tx, sw)));
+                twiddle_idx = (int)((((float)gs_idx - gs/2) / gs)*num_samples);
+                in(tx, !sw) = cuCsub(in(pair_tx, sw), cuCmul(twiddle(twiddle_idx),in(tx, sw)));
             }
             gs *= 2; // number of elements in a group will double
             sw = !sw;
@@ -232,11 +286,8 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
     __syncthreads();
 
     /* return the magnitude as the final output */
-    if (tx < num_samples) {
+    if (tx < num_samples) 
         freqs[tx] = in(tx, sw);
-        // freqs[tx] = make_cuDoubleComplex(1.0*input_idx, 0.0);
-        exps[tx] = twiddle(tx);
-    }
 
     #undef in
     #undef twiddle

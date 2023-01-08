@@ -39,26 +39,28 @@ int main(int argc, char* argv[])
     // dsp::create_spectogram(&nc_ts, 256, -1);
     // int test_out = dsp::test_cuda();
 
-    int fft_size = 8;
+    int fft_size = 1024;
 
     cuDoubleComplex* freqs = (cuDoubleComplex*)malloc(sizeof(cuDoubleComplex) * fft_size);
-    float* cuda_samples = (float*)malloc(sizeof(float) * fft_size);;
-    if (freqs == nullptr || cuda_samples == nullptr) {
-        printf("failed allocatin \n");
-        return 1;
-    }
+    // complex<double>* freqs = (complex<double>*)malloc(sizeof(complex<double>) * fft_size);
+    float* cuda_samples = (float*)malloc(sizeof(float) * fft_size);
+
 
     for (int i = 0; i < fft_size; i++)
         cuda_samples[i] = i;
 
-    dsp::FFT_Setup(cuda_samples, freqs, fft_size);
+    
+    auto start = high_resolution_clock::now();
+    dsp::cuFFT(cuda_samples, freqs, fft_size);
+    // dsp::FFT(cuda_samples, freqs, fft_size);
+    auto stop = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(stop - start);
+    cout << "Execution time: " << duration.count() << endl;
 
     for (int i = 0; i < 8; i++)
         printf("%f + i%f\n", freqs[i].x, freqs[i].y);
-        // printf("%.3f ", freqs[i]);
+        // printf("%f + i%f\n", real(freqs[i]), imag(freqs[i]));
 
-    // delete [] freqs;
-    // delete [] cuda_samples;
     free(freqs);
     free(cuda_samples);
 

@@ -55,13 +55,13 @@ namespace dsp {
 
     __host__ int DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT);
 
-    __host__ int FFT(vector<float> *ts, int NFFT, int noverlap);
+    __host__ void FFT(const float* samples, complex<double>* freqs, const int num_samples);
 
     __global__ void vector_add(float *out, float *a, float *b, int n);
 
-    __host__ void FFT_Setup(float* samples, cuDoubleComplex* freqs, int num_samples);
+    __host__ int cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples);
 
-    __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, cuDoubleComplex * __restrict__ exps, const int num_samples);
+    __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples);
 
     __host__ void get_device_properties();
 
