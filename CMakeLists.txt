@@ -7,7 +7,6 @@ project(MusicClassification CXX CUDA)
 message(STATUS "Finding CUDA package")
 find_package(CUDA)
 set(CMAKE_CUDA_STANDARD 14)
-# set(CMAKE_CXX_STANDARD 17)
 
 # want this flag so that debug symbols can be generated for gdb
 # NOTE: adding compilation flags should always happen before adding subdirectories

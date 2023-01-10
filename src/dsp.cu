@@ -12,6 +12,16 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
+/* checks if memory could not be allocated */
+#define mallocErrchk(ans) { mallocAssert((ans), __FILE__, __LINE__); }
+inline void mallocAssert(void* pointer, const char *file, int line, bool abort=true) {
+    if (pointer == nullptr)
+    {
+        fprintf(stderr, "mallocAssert: Returns nullptr at %s %d\n", file, line);
+        if (abort) exit(1);
+    }
+}
+
 __host__ int dsp::create_spectogram(vector<float> *ts, int NFFT = 256, int noverlap = -1) {
     if (noverlap < 0)
         noverlap = NFFT / 2;
@@ -306,6 +316,7 @@ __host__ int dsp::cuSTFT(float* samples, cuDoubleComplex** freqs, int num_sample
 
     int xns_size = num_ffts * NFFT;
     cuDoubleComplex* xns = (cuDoubleComplex*)malloc(xns_size*sizeof(cuDoubleComplex));
+    mallocErrchk(xns);
 
     /* create device pointers */
     float* device_samples;
@@ -323,23 +334,28 @@ __host__ int dsp::cuSTFT(float* samples, cuDoubleComplex** freqs, int num_sample
     /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
 
-    // FIX DIMENSIONS
+    // Set dimensions
     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
     dim3 gridDim(num_ffts, 1, 1);
+
+    printf("block dim: x.%d, y.%d, z.%d\n", blockDim.x, blockDim.y, blockDim.z);
+    printf("grid dim: x.%d, y.%d, z.%d\n", gridDim.x, gridDim.y, gridDim.z);
 
     /* kernel invocation */
     dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, NFFT, step);
 
     /* synchronize and copy data back to host */
-    cudaDeviceSynchronize();
-    cudaMemcpy(xns, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
 
+    gpuErrchk(cudaMemcpy(xns, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+    
     /* free memory */
-    cudaFree(device_samples);
-    cudaFree(device_freqs);
+    gpuErrchk(cudaFree(device_samples));
+    gpuErrchk(cudaFree(device_freqs));
 
     *freqs = xns;
-
+   
     return xns_size;
 }
 

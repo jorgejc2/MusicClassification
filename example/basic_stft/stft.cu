@@ -7,6 +7,16 @@ using namespace std;
 
 #define IMPLEMENTATION 4  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
 
+/* checks if memory could not be allocated */
+#define mallocErrchk(ans) { mallocAssert((ans), __FILE__, __LINE__); }
+inline void mallocAssert(void* pointer, const char *file, int line, bool abort=true) {
+    if (pointer == nullptr)
+    {
+        fprintf(stderr, "mallocAssert: Returns nullptr, %s %d\n", file, line);
+        if (abort) exit(1);
+    }
+}
+
 int main(int argc, char* argv[])
 {
 
@@ -34,8 +44,8 @@ int main(int argc, char* argv[])
         }
     }
 
-    for (int i = 0; i < 10; i++)
-        printf("%.15f ", nc_ts[i]);
+    // for (int i = 0; i < 10; i++)
+    //     printf("%.15f ", nc_ts[i]);
     
     /* if results above match that of Python, then move on to conducting a serial stft */
     // dsp::create_spectogram(&nc_ts, 256, -1);
@@ -88,31 +98,35 @@ int main(int argc, char* argv[])
 
     /* perform STFT  on cpu */
     #if (IMPLEMENTATION == 3)
-
+    printf("Implementation 3\n");
     #endif
 
     /* perform STFT on gpu */
     #if (IMPLEMENTATION == 4) 
-    int num_samples = nc_ts.size();
+
+    // int num_samples = nc_ts.size();
+    int num_samples = nc_ts_size;
     printf("Working with %d samples\n", num_samples);
     int NFFT = 256;
     int noverlap = -1;
     float* cuda_samples = (float*)malloc(num_samples*sizeof(float));
-    cuDoubleComplex** freqs;
+    mallocErrchk(cuda_samples);
+    cuDoubleComplex* freqs;
 
     for (int i = 0; i < num_samples; i++)
         cuda_samples[i] = nc_ts[i];
 
+    printf("Calling cuSTFT\n");
     auto start = high_resolution_clock::now();
-    dsp::cuSTFT(cuda_samples, freqs, num_samples, NFFT, noverlap);
+    dsp::cuSTFT(cuda_samples, &freqs, num_samples, NFFT, noverlap);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Execution time: " << duration.count() << endl;
 
     for (int i = 0; i < 8; i++)
-        printf("%f + i%f\n", (*freqs)[i].x, (*freqs)[i].y);
+        printf("%f + i%f\n", freqs[i].x, freqs[i].y);
 
-    free(*freqs);
+    free(freqs);
     free(cuda_samples);
 
     #endif
