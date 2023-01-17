@@ -5,7 +5,7 @@
 #include <NumCpp.hpp>
 using namespace std;
 
-#define IMPLEMENTATION 4  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
+#define IMPLEMENTATION 2  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
 
 /* checks if memory could not be allocated */
 #define mallocErrchk(ans) { mallocAssert((ans), __FILE__, __LINE__); }
@@ -125,6 +125,15 @@ int main(int argc, char* argv[])
 
     for (int i = 0; i < 8; i++)
         printf("%f + i%f\n", freqs[i].x, freqs[i].y);
+
+    FILE *fp;
+    fp = fopen("../../OutputText/stft_out.txt", "w");
+
+    for (int i = 0; i < num_freqs; i++) {
+    fprintf(fp, "%f%f \n", (int)wav_samples_16[i]);
+    }
+
+    fclose(fp);
 
     printf("%d number of frequencies\n", num_freqs);
 

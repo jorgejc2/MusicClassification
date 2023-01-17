@@ -61,6 +61,8 @@ namespace dsp {
 
     __host__ int cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples);
 
+    __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples, vector<complex<double>> freqs);
+
     __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples);
     
     __host__ int cuSTFT(float* samples, cuDoubleComplex** freqs, int num_samples, int NFFT, int noverlap);

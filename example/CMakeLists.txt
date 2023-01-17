@@ -21,3 +21,5 @@ target_link_libraries(stft
     NumCpp::NumCpp
 )
 
+set_target_properties(stft PROPERTIES CUDA_ARCHITECTURES "35;50;72")
+
