@@ -118,13 +118,15 @@ int main(int argc, char* argv[])
 
     printf("Calling cuSTFT\n");
     auto start = high_resolution_clock::now();
-    dsp::cuSTFT(cuda_samples, &freqs, num_samples, NFFT, noverlap);
+    int num_freqs = dsp::cuSTFT(cuda_samples, &freqs, num_samples, NFFT, noverlap);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Execution time: " << duration.count() << endl;
 
     for (int i = 0; i < 8; i++)
         printf("%f + i%f\n", freqs[i].x, freqs[i].y);
+
+    printf("%d number of frequencies\n", num_freqs);
 
     free(freqs);
     free(cuda_samples);
