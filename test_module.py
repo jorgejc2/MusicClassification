@@ -51,8 +51,3 @@ print("Close: {}".format(np.allclose(result, correct_result)))
 
 for i in range(len(correct_result)):
     print("correct: {}, your output: {}".format(correct_result[i], result[i]))
-
-# print(len(result))
-# print(type(result))
-# print(type(result[0]))
-# # print(result)
