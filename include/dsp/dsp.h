@@ -17,6 +17,8 @@ const dcomp img(0.0,1.0);
 
 #define REVERSE_TABLE_SIZE 256
 
+__constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
+
 namespace dsp {
     static const unsigned char reverse_table[] = {
         0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
@@ -53,7 +55,7 @@ namespace dsp {
         0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
     };
 
-    __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
+    
 
     __host__ int create_spectogram(vector<float> *ts, int NFFT, int noverlap);
 
@@ -65,19 +67,19 @@ namespace dsp {
 
     __host__ int cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples);
 
-    // __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples, vector<complex<double>> freqs);
-
     __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples);
     
     __host__ int cuSTFT(float* samples, cuDoubleComplex** freqs, int num_samples, int NFFT, int noverlap);
 
     __global__ void STFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples, int step);
 
+    /* if this is being used as a library, symbol copying must happen in this library */
+    __host__ void cpy_to_symbol();
+
     __host__ void get_device_properties();
 
     __host__ int get_thread_per_block();
 
-    // __host__ int test_cuda();
 }
 
 #endif // _DSP_H_
