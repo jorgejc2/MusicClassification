@@ -93,22 +93,12 @@ __host__ int test_cuda(){
 // __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
 
 __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
+    /* NOTE: complex<double> on host seems to cast well with cuDoubleComplex but not sure if always true */
     int num_samples = samples.size();
-    // printf("Numsamples: %d\n", num_samples);
 
     /* create device pointers */
     float* device_samples;
-    // cuDoubleComplex cu_freqs [num_samples];
-    float* init_samples = (float*)malloc(num_samples * sizeof(float));
-    for (int i = 0; i < num_samples; i++)
-        init_samples[i] = samples[i];
-    cuDoubleComplex* cu_freqs = (cuDoubleComplex*)malloc(num_samples * sizeof(cuDoubleComplex));
     cuDoubleComplex* device_freqs;
-    
-
-    // printf("First three samples\n");
-    // for(int i = 0; i < 3; i++)
-    //     printf("%f\n", init_samples[i]);
 
     /* initialize empty freqs vector to return */
     vector<complex<double>> freqs(num_samples, complex<double>(0,0));
@@ -119,9 +109,8 @@ __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
     size_t shmemsize = num_samples * 2.5 * sizeof(cuDoubleComplex);
 
     /* copy data to device and constant memory */
-    // gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
     dsp::cpy_to_symbol();
-    gpuErrchk(cudaMemcpy(device_samples, init_samples, num_samples*sizeof(float), cudaMemcpyHostToDevice));
+    gpuErrchk(cudaMemcpy(device_samples, &samples[0], num_samples*sizeof(float), cudaMemcpyHostToDevice));
 
     /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
@@ -129,42 +118,18 @@ __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
     dim3 blockDim(maxThreads > num_samples ? num_samples : maxThreads, 1, 1);
     dim3 gridDim(ceil((float)num_samples / maxThreads), 1, 1);
 
-    // printf("maxThreads: %d, blockDim.x: %d, gridDim.x: %d, shmemsize: %ld\n", maxThreads, blockDim.x, gridDim.x, shmemsize);
-
     /* kernel invocation */
     dsp::FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, num_samples);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
-    gpuErrchk(cudaMemcpy(cu_freqs, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
-
-    // for (int i = 0; i < num_samples; i++)
-    //     freqs[i] = complex<double>(cu_freqs[i].x, cu_freqs[i].y);
-    // printf("First three freqs\n");
-    // for(int i = 0; i < 20; i++)
-    //     printf("%ld %ld\n", real(freqs[i]), imag(freqs[i]));
+    gpuErrchk(cudaMemcpy(&freqs[0], device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
 
     /* free memory */
     gpuErrchk(cudaFree(device_samples));
     gpuErrchk(cudaFree(device_freqs));
 
-    for (int i = 0; i < num_samples; i++) {
-        freqs[i] = complex<double>(cu_freqs[i].x, cu_freqs[i].y);
-    }
-        
-    // printf("First three freqs\n");
-    // for(int i = 0; i < 20; i++)
-    //     cout<<freqs[i]<<endl;
-    //     // printf("%ld %ld\n", real(freqs[i]), imag(freqs[i]));
-
-    // vector<complex<double>> test = {
-    //     complex<double>(1,1),
-    //     complex<double>(2,2),
-    //     complex<double>(3,3)
-    // };
-    free(init_samples);
-    free(cu_freqs);
     return freqs;
 }
 
