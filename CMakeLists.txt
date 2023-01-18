@@ -16,10 +16,11 @@ endif()
 message(STATUS "Finding CUDA package")
 find_package(CUDA)
 set(CMAKE_CUDA_STANDARD 14)
-# set(PYBIND11_CPP_STANDARD -std=c++11)
 set(EXTERNALS "${PROJECT_SOURCE_DIR}/extern")
-find_package(PythonLibs REQUIRED)
-include_directories(${PYTHON_INCLUDE_DIRS})
+# add python packages
+# find_package(PythonInterp 3.6 REQUIRED)
+# find_package(PythonLibs 3.6 REQUIRED)
+# include_directories(${PYTHON_INCLUDE_DIRS})
 
 # want this flag so that debug symbols can be generated for gdb
 # NOTE: adding compilation flags should always happen before adding subdirectories
