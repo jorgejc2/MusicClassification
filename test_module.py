@@ -1,8 +1,6 @@
-# import sys
-# sys.path.append('./build/src')
-
-from build.src.dsp_module import *
-# import dsp_module
+from build.pybind_modules.dsp_module import *
 
 print(test_func())
 print(get_thread_per_block())
+
+

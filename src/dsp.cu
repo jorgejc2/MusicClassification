@@ -1,7 +1,7 @@
 #include "dsp/dsp.h"
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
+// #include <pybind11/pybind11.h>
+// #include <pybind11/stl.h>
+// #include <pybind11/numpy.h>
 #include <iostream>
 
 // namespace py = pybind11;
@@ -176,9 +176,9 @@ __host__ void dsp::FFT(const float* samples, complex<double>* freqs, const int n
 }
 
 // #define N 10000000
-#define REVERSE_TABLE_SIZE 256
+// #define REVERSE_TABLE_SIZE 256
 
-__constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
+// __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
 
 __global__ void dsp::vector_add(float *out, float *a, float *b, int n) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -241,41 +241,41 @@ __host__ int dsp::cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples)
 }
 
 /* python function to be called */
-__host__ vector<complex<double>> dsp::pybind_cuFFT(vector<float> samples, vector<complex<double>> freqs) {
+// __host__ vector<complex<double>> dsp::pybind_cuFFT(vector<float> samples, vector<complex<double>> freqs) {
 
-    /* create device pointers */
-    float* device_samples;
-    cuDoubleComplex* device_freqs;
-    int num_samples = samples.size();
+//     /* create device pointers */
+//     float* device_samples;
+//     cuDoubleComplex* device_freqs;
+//     int num_samples = samples.size();
 
-    /* allocate memory for device and shared memory */
-    gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, num_samples*sizeof(cuDoubleComplex)));
-    size_t shmemsize = num_samples * 2.5 * sizeof(cuDoubleComplex);
+//     /* allocate memory for device and shared memory */
+//     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
+//     gpuErrchk(cudaMalloc((void**)&device_freqs, num_samples*sizeof(cuDoubleComplex)));
+//     size_t shmemsize = num_samples * 2.5 * sizeof(cuDoubleComplex);
 
-    /* copy data to device and constant memory */
-    gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
-    gpuErrchk(cudaMemcpy(device_samples, &samples[0], num_samples*sizeof(float), cudaMemcpyHostToDevice));
+//     /* copy data to device and constant memory */
+//     gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
+//     gpuErrchk(cudaMemcpy(device_samples, &samples[0], num_samples*sizeof(float), cudaMemcpyHostToDevice));
 
-    /* get max threads per block and create dimensions */
-    int maxThreads = dsp::get_thread_per_block();
+//     /* get max threads per block and create dimensions */
+//     int maxThreads = dsp::get_thread_per_block();
 
-    dim3 blockDim(maxThreads > num_samples ? num_samples : maxThreads, 1, 1);
-    dim3 gridDim(ceil((float)num_samples / maxThreads), 1, 1);
+//     dim3 blockDim(maxThreads > num_samples ? num_samples : maxThreads, 1, 1);
+//     dim3 gridDim(ceil((float)num_samples / maxThreads), 1, 1);
 
-    /* kernel invocation */
-    FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, num_samples);
+//     /* kernel invocation */
+//     FFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, num_samples);
 
-    /* synchronize and copy data back to host */
-    cudaDeviceSynchronize();
-    cudaMemcpy(&freqs[0], device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
+//     /* synchronize and copy data back to host */
+//     cudaDeviceSynchronize();
+//     cudaMemcpy(&freqs[0], device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost);
 
-    /* free memory */
-    cudaFree(device_samples);
-    cudaFree(device_freqs);
+//     /* free memory */
+//     cudaFree(device_samples);
+//     cudaFree(device_freqs);
 
-    return freqs;
-}
+//     return freqs;
+// }
 
 /* note that the max FFT size is limited to the max number of threads allowed in a thread block */
 __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples) {
@@ -540,30 +540,30 @@ __host__ int dsp::get_thread_per_block() {
 //     return 1;
 // }
 
-int test_function () {return 1;}
+// int test_function () {return 1;}
 
-PYBIND11_MODULE(dsp_module, module_handle) {
-    module_handle.doc() = "I'm a docstring hehe";
-    module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
-//   module_handle.def("cuFFT", &dsp::pybind_cuFFT);
-    module_handle.def("test_func", &test_function);
-//   module_handle.def("some_fn_python_name", &some_fn);
-//   module_handle.def("some_class_factory", &some_class_factory);
-//   py::class_<SomeClass>(
-// 			module_handle, "PySomeClass"
-// 			).def(py::init<float>())
-//     .def_property("multiplier", &SomeClass::get_mult, &SomeClass::set_mult)
-//     .def("multiply", &SomeClass::multiply)
-//     .def("multiply_list", &SomeClass::multiply_list)
-//     // .def_property_readonly("image", &SomeClass::make_image)
-//     .def_property_readonly("image", [](SomeClass &self) {
-// 				      py::array out = py::cast(self.make_image());
-// 				      return out;
-// 				    })
-//     // .def("multiply_two", &SomeClass::multiply_two)
-//     .def("multiply_two", [](SomeClass &self, float one, float two) {
-// 			   return py::make_tuple(self.multiply(one), self.multiply(two));
-// 			 })
-//     .def("function_that_takes_a_while", &SomeClass::function_that_takes_a_while)
-//     ;
-}
+// PYBIND11_MODULE(dsp_module, module_handle) {
+//     module_handle.doc() = "I'm a docstring hehe";
+//     module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
+// //   module_handle.def("cuFFT", &dsp::pybind_cuFFT);
+//     module_handle.def("test_func", &test_function);
+// //   module_handle.def("some_fn_python_name", &some_fn);
+// //   module_handle.def("some_class_factory", &some_class_factory);
+// //   py::class_<SomeClass>(
+// // 			module_handle, "PySomeClass"
+// // 			).def(py::init<float>())
+// //     .def_property("multiplier", &SomeClass::get_mult, &SomeClass::set_mult)
+// //     .def("multiply", &SomeClass::multiply)
+// //     .def("multiply_list", &SomeClass::multiply_list)
+// //     // .def_property_readonly("image", &SomeClass::make_image)
+// //     .def_property_readonly("image", [](SomeClass &self) {
+// // 				      py::array out = py::cast(self.make_image());
+// // 				      return out;
+// // 				    })
+// //     // .def("multiply_two", &SomeClass::multiply_two)
+// //     .def("multiply_two", [](SomeClass &self, float one, float two) {
+// // 			   return py::make_tuple(self.multiply(one), self.multiply(two));
+// // 			 })
+// //     .def("function_that_takes_a_while", &SomeClass::function_that_takes_a_while)
+// //     ;
+// }

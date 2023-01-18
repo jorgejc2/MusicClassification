@@ -18,9 +18,9 @@ find_package(CUDA)
 set(CMAKE_CUDA_STANDARD 14)
 set(EXTERNALS "${PROJECT_SOURCE_DIR}/extern")
 # add python packages
-# find_package(PythonInterp 3.6 REQUIRED)
-# find_package(PythonLibs 3.6 REQUIRED)
-# include_directories(${PYTHON_INCLUDE_DIRS})
+find_package(PythonInterp 3.6 REQUIRED)
+find_package(PythonLibs 3.6 REQUIRED)
+include_directories(${PYTHON_INCLUDE_DIRS})
 
 # want this flag so that debug symbols can be generated for gdb
 # NOTE: adding compilation flags should always happen before adding subdirectories
@@ -30,6 +30,7 @@ message(STATUS "Adding subdirectories")
 add_subdirectory(${EXTERNALS}/pybind11)
 add_subdirectory(include)
 add_subdirectory(src)
+add_subdirectory(pybind_modules)
 
 option (BUILD_EXAMPLES "Whether or not to build examples"
 ON)

@@ -15,6 +15,8 @@ typedef complex<float> dcomp;
 
 const dcomp img(0.0,1.0);
 
+#define REVERSE_TABLE_SIZE 256
+
 namespace dsp {
     static const unsigned char reverse_table[] = {
         0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
@@ -51,6 +53,8 @@ namespace dsp {
         0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
     };
 
+    __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
+
     __host__ int create_spectogram(vector<float> *ts, int NFFT, int noverlap);
 
     __host__ int DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT);
@@ -61,7 +65,7 @@ namespace dsp {
 
     __host__ int cuFFT(float* samples, cuDoubleComplex* freqs, int num_samples);
 
-    __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples, vector<complex<double>> freqs);
+    // __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples, vector<complex<double>> freqs);
 
     __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples);
     
