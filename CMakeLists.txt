@@ -16,20 +16,17 @@ endif()
 message(STATUS "Finding CUDA package")
 find_package(CUDA)
 set(CMAKE_CUDA_STANDARD 14)
-set(PYBIND11_CPP_STANDARD -std=c++11)
+# set(PYBIND11_CPP_STANDARD -std=c++11)
+set(EXTERNALS "${PROJECT_SOURCE_DIR}/extern")
 find_package(PythonLibs REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
-
-# set_property(TARGET src PROPERTY CUDA_ARCHITECTURES native)
-# set_target_properties(tgt PROPERTIES CUDA_ARCHITECTURES "35;50;72")
-# set_property(TARGET tgt PROPERTY CUDA_ARCHITECTURES OFF)
 
 # want this flag so that debug symbols can be generated for gdb
 # NOTE: adding compilation flags should always happen before adding subdirectories
 # add_compile_options(-g)
 
 message(STATUS "Adding subdirectories")
-add_subdirectory(pybind11)
+add_subdirectory(${EXTERNALS}/pybind11)
 add_subdirectory(include)
 add_subdirectory(src)
 

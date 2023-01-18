@@ -1,15 +1,23 @@
 #include "dsp/dsp.h"
+#include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 
+using namespace dsp;
+
 namespace py = pybind11;
 
-int test_function () {return 1;}
+int test_function() {return 1;}
+
+int py_thread_per_block() { return get_thread_per_block();}
+
+
 
 PYBIND11_MODULE(dsp_module, module_handle) {
     module_handle.doc() = "I'm a docstring hehe";
-    module_handle.def("cuFFT", &dsp::pybind_cuFFT);
+    // module_handle.def("cuFFT", &pybind_cuFFT);
+    module_handle.def("get_threads", &py_thread_per_block);
     module_handle.def("test_func", &test_function);
 //   module_handle.def("some_fn_python_name", &some_fn);
 //   module_handle.def("some_class_factory", &some_class_factory);

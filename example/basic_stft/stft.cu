@@ -5,7 +5,7 @@
 #include <NumCpp.hpp>
 using namespace std;
 
-#define IMPLEMENTATION 2  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
+#define IMPLEMENTATION 1  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
 
 /* checks if memory could not be allocated */
 #define mallocErrchk(ans) { mallocAssert((ans), __FILE__, __LINE__); }
