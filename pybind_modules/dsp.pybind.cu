@@ -131,7 +131,7 @@ __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
     return freqs;
 }
 
-__host__ vector<vector<complex<double>>> pybind_cuSTFT(vector<float> samples, int NFFT, int noverlap) {
+__host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided) {
 
     /* initialization */
     int num_samples = samples.size(); // get number of samples
@@ -147,17 +147,17 @@ __host__ vector<vector<complex<double>>> pybind_cuSTFT(vector<float> samples, in
     while ( num_ffts * step >= num_samples )
         num_ffts--;
 
+    /* create vector and host output */
     int xns_size = num_ffts * NFFT;
-    vector<vector<complex<double>>> xns(NFFT, vector<complex<double>>(num_ffts, complex<double>(0,0)));
-    cuDoubleComplex* freqs = (cuDoubleComplex*)malloc(xns_size*sizeof(cuDoubleComplex));
+    double* freqs = (double*)malloc(xns_size*sizeof(double));
     mallocErrchk(freqs);
     /* create device pointers */
     float* device_samples;
-    cuDoubleComplex* device_freqs;
+    double* device_freqs;
 
     /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(cuDoubleComplex)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
     /* copy data to device and constant memory */
@@ -175,30 +175,29 @@ __host__ vector<vector<complex<double>>> pybind_cuSTFT(vector<float> samples, in
     // printf("grid dim: x.%d, y.%d, z.%d\n", gridDim.x, gridDim.y, gridDim.z);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, NFFT, step);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
     /* may be an issue copying array into a 2D vector */
-    gpuErrchk(cudaMemcpy(freqs, device_freqs, xns_size*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaMemcpy(freqs, device_freqs, xns_size*sizeof(double), cudaMemcpyDeviceToHost));
     
     /* free memory */
     gpuErrchk(cudaFree(device_samples));
     gpuErrchk(cudaFree(device_freqs));
 
-    for (int i = 0; i < NFFT; i++) {
+    int one_sided_nfft = one_sided ? NFFT / 2 + 1 : NFFT;
+    vector<vector<double>> xns(one_sided_nfft, vector<double>(num_ffts, 0.0));
+    for (int i = 0; i < one_sided_nfft; i++) {
         for (int j = 0; j < num_ffts; j++) {
-            xns[i][j] = complex<double>(freqs[i * num_ffts + j].x, freqs[i * num_ffts + j].y);
+            xns[i][j] = freqs[i * num_ffts + j];
+            // xns[i][j] = complex<double>(freqs[i * num_ffts + j].x, freqs[i * num_ffts + j].y);
         }
     }
 
     free(freqs);
-
-    // for (int i = 0; i < 8; i++) {
-    //     printf("%f\n", xns[0][i]);
-    // }
    
     return xns;
 }
@@ -208,11 +207,10 @@ PYBIND11_MODULE(dsp_module, module_handle) {
     module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
     module_handle.def("cuFFT", &pybind_cuFFT, py::return_value_policy::copy);
     // module_handle.def("cuSTFT", &pybind_cuSTFT, py::return_value_policy::copy);
-    module_handle.def("cuSTFT", [](vector<float> samples, int NFFT, int noverlap) {
-        printf("len(samples): %d, NFFT: %d, noverlap: %d\n", samples.size(), NFFT, noverlap);
-        py::array out = py::cast(pybind_cuSTFT(samples, NFFT, noverlap));
+    module_handle.def("cuSTFT", [](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided) {
+        py::array out = py::cast(pybind_cuSTFT(samples, sample_rate, NFFT, noverlap, one_sided));
         return out;
-    }, py::arg("samples"), py::arg("NFFT"), py::arg("noverlap"), py::return_value_policy::move);
+    }, py::arg("samples"), py::arg("sample_rate"), py::arg("NFFT"), py::arg("noverlap"), py::arg("one_sided"), py::return_value_policy::move);
     module_handle.def("test_func", &test_function);
     module_handle.def("test_cuda", &test_cuda);
 /* commented out but kept for reference for adding a class */

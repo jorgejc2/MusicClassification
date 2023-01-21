@@ -111,20 +111,21 @@ int main(int argc, char* argv[])
     int noverlap = -1;
     float* cuda_samples = (float*)malloc(num_samples*sizeof(float));
     mallocErrchk(cuda_samples);
-    cuDoubleComplex* freqs;
+    double* freqs;
 
     for (int i = 0; i < num_samples; i++)
         cuda_samples[i] = nc_ts[i];
 
     printf("Calling cuSTFT\n");
     auto start = high_resolution_clock::now();
-    int num_freqs = dsp::cuSTFT(cuda_samples, &freqs, num_samples, NFFT, noverlap);
+    int num_freqs = dsp::cuSTFT(cuda_samples, &freqs, sample_rate, num_samples, NFFT, noverlap);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Execution time: " << duration.count() << endl;
 
     for (int i = 0; i < 8; i++)
-        printf("%f + i%f\n", freqs[i].x, freqs[i].y);
+        printf("%f\n", freqs[i]);
+        // printf("%f + i%f\n", freqs[i].x, freqs[i].y);
 
     FILE *fp;
     fp = fopen("../../OutputText/stft_out.txt", "w");
@@ -133,13 +134,13 @@ int main(int argc, char* argv[])
     int zero_count = 0;
     printf("%d number of frequencies\n", num_freqs);
     while (i < num_freqs) {
-        if (freqs[i].x == 0.0 && freqs[i].y == 0.0)
+        if (freqs[i] == 0.0)
             ++zero_count;
 
         if (i % 256 == 0 && i > 0)
-            fprintf(fp, "(%f, i%f) \n", freqs[i].x, freqs[i].y);
+            fprintf(fp, "%f \n", freqs[i]);
         else
-            fprintf(fp, "(%f, i%f) ", freqs[i].x, freqs[i].y);
+            fprintf(fp, "%f ", freqs[i]);
 
         ++i;
     }    

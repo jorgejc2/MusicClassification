@@ -21,10 +21,7 @@ class testbench():
     # testbench results
 
     tb_results = {
-        "ringtone_test" : False,
-        "simple_one": False,
-        "simple_two": False,
-        "simple_three": False,
+        "ringtone_test" : False
     }
     
     # helper functions
@@ -79,7 +76,7 @@ class testbench():
 
         self.tb_results["simple_one"] = tb_result
 
-    def ringtone_test(self, nfft: int = 256, noverlap: int = -1, visualize_output: bool = False):
+    def ringtone_test(self, nfft: int = 256, noverlap: int = -1, percent_error_threshold: int = 0.001, visualize_output: bool = False):
         """
         Description: FFT of two signals
         Inputs: 
@@ -90,7 +87,7 @@ class testbench():
         Effects: updates tb_results
         """
         sample_rate   = 4000
-        length_ts_sec = 3
+        length_ts_sec = 4
         ## --------------------------------- ##
         ## 3 seconds of "digit 1" sound
         ## Pressing digit 2 buttom generates 
@@ -122,64 +119,65 @@ class testbench():
         # concatenates the lists, doesn't sum their values like a numpy array
         ts = ts1 + ts_silence  + ts2
 
-        print("About to take cuSTFT")
-        result = cu.cuSTFT(list(ts), nfft, noverlap)
-        for i in range(result.shape[1]):
-            result[:, i] = 5 * np.log10(np.abs(result[:, i])**2 / (nfft*sample_rate), where=np.abs(result[:,i])>0)
-        f_copy = np.linspace(0, sample_rate, result.shape[0])
+        result = cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True)
         t_copy = np.linspace(0, len(ts)/sample_rate, result.shape[1])
         
-        print("Done cuSTFT")
-        print("Type: {}".format(type(result)))
-        print()
-        # result_f = np.linspace(0, )
-        f, t, stft_results = scipy.signal.stft(ts, fs=sample_rate, window="boxcar", nperseg=256, noverlap=None if noverlap == -1 else noverlap, nfft=nfft, detrend=False, return_onesided=False, boundary=None, padded=False, axis=-1, scaling='psd')
-        for i in range(stft_results.shape[1]):
-            stft_results[:, i] = 10*np.log10(np.abs(stft_results[:, i]), where=np.abs(stft_results[:,i])>0)
-        # print(f)
-        # print('\n')
-        # print(t)
-        # print('\n')
-        # print(t_copy)
-        # print('\n')
-        # fft_result = np.fft.fft(ts[:nfft])
-        # windowed_fft = (2 * fft_result) / (sample_rate*(nfft//2))
-        # windowed_fft = 5 * np.log10(np.abs(fft_result)**2 / ((nfft*sample_rate)), where=fft_result > 0)
-        for i in range(217):
-            print("{}".format(all(np.isclose(result[:,i], stft_results[:,i]))))
+        # calculate stft from scipy's library 
+        f, t, stft_results = scipy.signal.stft(ts, fs=sample_rate, window="boxcar", nperseg=nfft, noverlap=None if noverlap == -1 else noverlap, nfft=nfft, detrend=False, return_onesided=True, boundary=None, padded=False, axis=-1, scaling='psd')
+        # calculate power spectral density of every entry
+        stft_results = np.abs(stft_results)
+        stft_results = 10*np.log10(stft_results)
 
-        # print("isclose: {}".format(np.isclose(result[:, 0], windowed_fft)))
-        # print(result[:10, 0])
-        # print('\n')
-        # print(fft_result[:10])
-        # print('\n')
-        # print(windowed_fft[:10])
-        # print('\n')
-        # print(10*np.log10(np.abs(stft_results[:10,0])))
-        # print('\n')
-        # print(stft_results[:10, 0])
-        # print('\n')
+        # scipy typically trims last time frame, so only check time frames that exists in both arrays
+        lesser_t_len = stft_results.shape[1] if stft_results.shape[1] < result.shape[1] else result.shape[1]
 
-        # tb_result = np.allclose(result, correct_result)
+        # automatically true if every match is close
+        correct_output = np.allclose(result[:,:lesser_t_len], stft_results[:,:lesser_t_len])
+
+        # find entries where result does not match with stft_results
+        counter = 10
+        num_notclose = 0
+        for i in range(lesser_t_len):
+            # iterate through every time frame
+            close = all(np.isclose(result[:,i], stft_results[:,i]))
+            if not close:
+                if visualize_output and counter > 0: print("Not close at time frame {}".format(i))
+                for j in range(stft_results.shape[0]):
+                    # iterate through every frequency in a time frame
+                    curr_stft = stft_results[j,i]
+                    curr_result = result[j,i]
+                    if not np.isclose(curr_stft, curr_result):
+                        # two entries were found not matching
+                        num_notclose += 1
+                        counter -= 1
+                        if visualize_output and counter > 0: print("\tNot matching at row: {}, column: {}; values of scipy: {}, cu: {}".format(i, j, curr_stft, curr_result))
+
+        # total compared entries
+        total = stft_results.shape[0] * lesser_t_len
+        
+        # check if error is permissible for testbench
+        if num_notclose/total < percent_error_threshold:
+            correct_output = True
+
+        tb_result = correct_output
 
         if visualize_output:
+            print("num_notclose: {}, total: {}, error: {}, error_threshold: {}".format(num_notclose, total, num_notclose/total, percent_error_threshold))
             print("cu_stft.shape(): {}, signal.stft.shape: {}".format(result.shape, stft_results.shape))
             plt.title("Scipy STFT")
-            plt.pcolormesh(t, f, np.abs(stft_results))
+            plt.pcolormesh(t, f, (stft_results))
             plt.savefig(dir_path + '/MatplotGraphs/stft_results.png')
+            plt.show()
 
             plt.title("cu_STFT")
-            # plt.pcolormesh(t_copy, f, 10.0*np.log10(np.abs(result)))
-            plt.pcolormesh(t_copy, f, np.abs(result))
-            # plt.pcolormesh(t_copy, f, result)
+            plt.pcolormesh(t_copy, f, (result))
             plt.savefig(dir_path + '/MatplotGraphs/cuSTFT_results.png')
-            # print("Close: {}".format(tb_result))
-            # for i in range(len(correct_result)):
-            #     print("correct: {}, your output: {}".format(correct_result[i], result[i]))
+            plt.show()
 
-        # self.tb_results["ringtone_test"] = tb_result
+        self.tb_results["ringtone_test"] = tb_result
 
 if __name__ == "__main__":
+    print("Current file path is " + dir_path + '\n')
     tb = testbench()
 
     # running tests
