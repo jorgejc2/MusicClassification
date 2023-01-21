@@ -320,6 +320,7 @@ __host__ int dsp::cuSTFT(float* samples, cuDoubleComplex** freqs, int num_sample
         num_ffts--;
 
     int xns_size = num_ffts * NFFT;
+    printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
     cuDoubleComplex* xns = (cuDoubleComplex*)malloc(xns_size*sizeof(cuDoubleComplex));
     mallocErrchk(xns);
 
@@ -353,7 +354,7 @@ __host__ int dsp::cuSTFT(float* samples, cuDoubleComplex** freqs, int num_sample
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
-    gpuErrchk(cudaMemcpy(xns, device_freqs, num_samples*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaMemcpy(xns, device_freqs, xns_size*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
     
     /* free memory */
     gpuErrchk(cudaFree(device_samples));
@@ -369,6 +370,8 @@ __global__ void dsp::STFT_Kernel(const float* samples, cuDoubleComplex* __restri
     // NOTE; here num_samples is equivalent to NFFT not that actual number of total samples
     int tx = threadIdx.x;
     int bx = blockIdx.x;
+    // int num_ffts = blockDim.x;
+    int num_ffts = gridDim.x;
     unsigned char idx_arr[4]; // character array used to create input_idx
     unsigned int input_idx; // sample index each thread is responsible for loading to shared memory 
     int bit_shift = (int)log2f((float)num_samples); // also corresponds to number of stages 
@@ -388,7 +391,7 @@ __global__ void dsp::STFT_Kernel(const float* samples, cuDoubleComplex* __restri
     
     /* copy inputs to shared memory */
     if (tx < num_samples)
-        in(input_idx, sw) = make_cuDoubleComplex(samples[tx + bx*step], 0.0); 
+        in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx], 0.0); 
 
     /* only need half the twiddle factors since they are symmetric */
     if (tx < num_samples/2)
@@ -426,7 +429,9 @@ __global__ void dsp::STFT_Kernel(const float* samples, cuDoubleComplex* __restri
 
     /* return the magnitude as the final output */
     if (tx < num_samples) 
-        freqs[tx + bx*num_samples] = in(tx, sw);
+        // freqs[tx_samples + bx] = in(tx, sw);
+        freqs[tx*num_ffts + bx] = in(tx, sw);
+        // freqs[tx + bx*num_samples] = make_cuDoubleComplex(10.0 * log10f(cuCabs(in(tx, sw))), 0);
 
     #undef in
     #undef twiddle

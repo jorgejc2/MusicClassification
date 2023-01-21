@@ -90,8 +90,6 @@ __host__ int test_cuda(){
     return 1;
 }
 
-// __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
-
 __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
     /* NOTE: complex<double> on host seems to cast well with cuDoubleComplex but not sure if always true */
     int num_samples = samples.size();
@@ -133,12 +131,92 @@ __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
     return freqs;
 }
 
+__host__ vector<vector<complex<double>>> pybind_cuSTFT(vector<float> samples, int NFFT, int noverlap) {
+
+    /* initialization */
+    int num_samples = samples.size(); // get number of samples
+
+    /* default noverlap */
+    if (noverlap < 0)
+        noverlap = NFFT / 2;
+
+    int step = NFFT - noverlap;
+    int num_ffts = ceil((float)num_samples/step);
+
+    /* trim FFT's that are out of bounds */
+    while ( num_ffts * step >= num_samples )
+        num_ffts--;
+
+    int xns_size = num_ffts * NFFT;
+    vector<vector<complex<double>>> xns(NFFT, vector<complex<double>>(num_ffts, complex<double>(0,0)));
+    cuDoubleComplex* freqs = (cuDoubleComplex*)malloc(xns_size*sizeof(cuDoubleComplex));
+    mallocErrchk(freqs);
+    /* create device pointers */
+    float* device_samples;
+    cuDoubleComplex* device_freqs;
+
+    /* allocate memory for device and shared memory */
+    gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(cuDoubleComplex)));
+    size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
+
+    /* copy data to device and constant memory */
+    dsp::cpy_to_symbol();
+    gpuErrchk(cudaMemcpy(device_samples, &samples[0], num_samples*sizeof(float), cudaMemcpyHostToDevice));
+
+    /* get max threads per block and create dimensions */
+    int maxThreads = dsp::get_thread_per_block();
+
+    // Set dimensions
+    dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
+    dim3 gridDim(num_ffts, 1, 1);
+
+    // printf("block dim: x.%d, y.%d, z.%d\n", blockDim.x, blockDim.y, blockDim.z);
+    // printf("grid dim: x.%d, y.%d, z.%d\n", gridDim.x, gridDim.y, gridDim.z);
+
+    /* kernel invocation */
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, NFFT, step);
+
+    /* synchronize and copy data back to host */
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    /* may be an issue copying array into a 2D vector */
+    gpuErrchk(cudaMemcpy(freqs, device_freqs, xns_size*sizeof(cuDoubleComplex), cudaMemcpyDeviceToHost));
+    
+    /* free memory */
+    gpuErrchk(cudaFree(device_samples));
+    gpuErrchk(cudaFree(device_freqs));
+
+    for (int i = 0; i < NFFT; i++) {
+        for (int j = 0; j < num_ffts; j++) {
+            xns[i][j] = complex<double>(freqs[i * num_ffts + j].x, freqs[i * num_ffts + j].y);
+        }
+    }
+
+    free(freqs);
+
+    // for (int i = 0; i < 8; i++) {
+    //     printf("%f\n", xns[0][i]);
+    // }
+   
+    return xns;
+}
+
 PYBIND11_MODULE(dsp_module, module_handle) {
     module_handle.doc() = "I'm a docstring hehe";
     module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
     module_handle.def("cuFFT", &pybind_cuFFT, py::return_value_policy::copy);
+    // module_handle.def("cuSTFT", &pybind_cuSTFT, py::return_value_policy::copy);
+    module_handle.def("cuSTFT", [](vector<float> samples, int NFFT, int noverlap) {
+        printf("len(samples): %d, NFFT: %d, noverlap: %d\n", samples.size(), NFFT, noverlap);
+        py::array out = py::cast(pybind_cuSTFT(samples, NFFT, noverlap));
+        return out;
+    }, py::arg("samples"), py::arg("NFFT"), py::arg("noverlap"), py::return_value_policy::move);
     module_handle.def("test_func", &test_function);
     module_handle.def("test_cuda", &test_cuda);
+/* commented out but kept for reference for adding a class */
+
 //   module_handle.def("some_fn_python_name", &some_fn);
 //   module_handle.def("some_class_factory", &some_class_factory);
 //   py::class_<SomeClass>(

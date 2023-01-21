@@ -5,7 +5,7 @@
 #include <NumCpp.hpp>
 using namespace std;
 
-#define IMPLEMENTATION 2  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
+#define IMPLEMENTATION 4  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
 
 /* checks if memory could not be allocated */
 #define mallocErrchk(ans) { mallocAssert((ans), __FILE__, __LINE__); }
@@ -104,8 +104,8 @@ int main(int argc, char* argv[])
     /* perform STFT on gpu */
     #if (IMPLEMENTATION == 4) 
 
-    // int num_samples = nc_ts.size();
-    int num_samples = nc_ts_size;
+    int num_samples = nc_ts.size();
+    // int num_samples = nc_ts_size;
     printf("Working with %d samples\n", num_samples);
     int NFFT = 256;
     int noverlap = -1;
@@ -129,13 +129,24 @@ int main(int argc, char* argv[])
     FILE *fp;
     fp = fopen("../../OutputText/stft_out.txt", "w");
 
-    for (int i = 0; i < num_freqs; i++) {
-    fprintf(fp, "%f%f \n", (int)wav_samples_16[i]);
-    }
+    int i = 0;
+    int zero_count = 0;
+    printf("%d number of frequencies\n", num_freqs);
+    while (i < num_freqs) {
+        if (freqs[i].x == 0.0 && freqs[i].y == 0.0)
+            ++zero_count;
 
+        if (i % 256 == 0 && i > 0)
+            fprintf(fp, "(%f, i%f) \n", freqs[i].x, freqs[i].y);
+        else
+            fprintf(fp, "(%f, i%f) ", freqs[i].x, freqs[i].y);
+
+        ++i;
+    }    
     fclose(fp);
 
-    printf("%d number of frequencies\n", num_freqs);
+    int len_difference = num_freqs - 55552;
+    printf("zero count: %d, adjusted: %d\n", zero_count, zero_count - len_difference);
 
     free(freqs);
     free(cuda_samples);
