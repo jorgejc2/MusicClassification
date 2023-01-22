@@ -27,60 +27,12 @@ inline void mallocAssert(void* pointer, const char *file, int line, bool abort=t
     }
 }
 
-__host__ int dsp::create_spectogram(vector<float> *ts, int NFFT = 256, int noverlap = -1) {
-    if (noverlap < 0)
-        noverlap = NFFT / 2;
 
-    int32_t ts_size = (int32_t)ts->size();
-
-    nc::NdArray<int> starts_original = nc::arange<int>(0, ts_size, NFFT - noverlap);
-    nc::NdArray<int> starts = starts_original[starts_original + NFFT < (int)ts_size];
-    /* create a 2D vector where rows represent each time window and columns represent frequency bins */
-    vector<vector<float>> xns (starts.size(), vector<float>(ts_size/2));
-
-    nc::NdArray<int> ks = nc::arange<int>(0, NFFT, 1);
-    printf("%ld computations will occur\n", starts.size() * (ts_size/2) * NFFT);
-    auto start = high_resolution_clock::now();
-    for (int m = 0; m < starts.size(); m++) {
-
-        dsp::DFT_slow(ts, &ks, &(xns[m]), starts[m], NFFT);
-
-        // for (int n = 0; n < ts_size/2; n++) {
-        //     dcomp a = 0;
-        //     float calc = 0.0;
-        //     int ts_offset = starts[m];
-
-        //     dcomp curr_n = n;
-        //     dcomp curr_NFFT = NFFT;
-        //     dcomp curr_pi = M_PI;
-        //     dcomp two = 2;
-
-        //     for (int k = 0; k < NFFT; k++) {
-        //         dcomp curr_ts = (*ts)[ts_offset + k];
-        //         dcomp curr_ks = ks[k];
-        //         a += curr_ts * exp((img * two * curr_pi * curr_ks * curr_n)/curr_NFFT);
-        //     }
-
-        //     calc = 10*log10(abs(a)*2);
-
-        //     xns[m][n] = calc;
-        // }
-    }
-    auto stop = high_resolution_clock::now();
-    auto duration = duration_cast<microseconds>(stop - start);
-    cout << "Execution time: " << duration.count() << endl;
-    /* print out the dft values */
-    
-    for (int m = 0; m < 2; m++) {
-        for (int n = 0; n < ts_size / 2; n++) {
-            printf("%.3f ", xns[m][n]);
-        }
-        printf("\n");
-    }
-
-    return 0;
-}
-
+/*
+    Description: This conducts a serial DFT in O(n^2). This should be the slowest function since it does not 
+                 have the same runtime as a radix-2 FFt (O(nlogn)) and is also serial. This function is also most 
+                 implemented incorrectly.
+*/
 __host__ int dsp::DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT) {
     int ts_size = ts->size();
     for (int n = 0; n < ts_size/2; n++) {
@@ -105,22 +57,34 @@ __host__ int dsp::DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float
     return -1;
 }
 
-/* this will be the serial CPU FFT version which should display speed up over DFT_slow */
+/*
+    Description: This is a serial CPU implementation of the FFT with a runtime of O(nlogn)
+    Inputs: 
+            const float* samples -- series of time samples
+            const int num_samples -- number of samples
+    Outputs:
+            complex<double>* freqs -- computed frequencies from samples
+    Returns: 
+            None
+    Effects:
+            None
+*/
 __host__ void dsp::FFT(const float* samples, complex<double>* freqs, const int num_samples) {
 
-    unsigned char idx_arr[4];
-    unsigned int input_idx;
+    unsigned char idx_arr[4]; // character array used to create input_idx
+    unsigned int input_idx; // sample index to currently access
     int bit_shift = (int)log2((float)num_samples); // also corresponds to number of stages 
-    int sw = 0;
-    // complex<double> shmem [num_samples * 2.5];
-    complex<double>* shmem = (complex<double>*)malloc(num_samples * 2.5 * sizeof(complex<double>));
+    int sw = 0; // flag for alternating computational buffers 
+    complex<double>* shmem = (complex<double>*)malloc(num_samples * 2.5 * sizeof(complex<double>)); // acts as shared memory for holding intermediate computations
 
+    /* easier access of 'shared memory' */
     #define in(i0, swi) shmem[swi*num_samples + i0]
     #define twiddle(i0) shmem[2*num_samples + i0]
 
+    /* iterate through what would be every thread */
     for (int tx = 0; tx < num_samples; tx++) {
 
-        /* rearrange smaples into necessary order for FFT */
+        /* rearrange smaples into necessary order and form input_idx */
         for(int i = 0; i < 4; i++)
             idx_arr[i] = dsp::reverse_table[(0x000000FF) & (tx >> (i*8))];
 
@@ -161,12 +125,14 @@ __host__ void dsp::FFT(const float* samples, complex<double>* freqs, const int n
                 }
             }
         gs *= 2; // number of elements in a group will double
-        sw = !sw;
+        sw = !sw; // switch where intermediate values will be placed
         }
 
+    /* store final outputs */
     for (int tx = 0; tx < num_samples; tx++)
         freqs[tx] = in(tx, sw);
 
+    /* finished and return */
     free(shmem);
     
     return;
@@ -175,11 +141,15 @@ __host__ void dsp::FFT(const float* samples, complex<double>* freqs, const int n
     #undef twiddle
 }
 
-// #define N 10000000
-// #define REVERSE_TABLE_SIZE 256
-
-// __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
-
+/* 
+    Description: Simple vector add to aid in testing if the GPU is set up correctly 
+    Inputs:
+            float* a -- first vector for summing
+            float* b -- second vector for summing
+            int n -- dimension of vectors
+    Outputs:
+            float* out -- vector holding the sums
+*/
 __global__ void dsp::vector_add(float *out, float *a, float *b, int n) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < n)

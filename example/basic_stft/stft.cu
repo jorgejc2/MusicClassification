@@ -44,12 +44,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    // for (int i = 0; i < 10; i++)
-    //     printf("%.15f ", nc_ts[i]);
-    
-    /* if results above match that of Python, then move on to conducting a serial stft */
-    // dsp::create_spectogram(&nc_ts, 256, -1);
-
     /* perform simple FFT test on cpu */
     #if (IMPLEMENTATION == 1)
     int fft_size = 1024;

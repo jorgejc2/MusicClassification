@@ -55,10 +55,6 @@ namespace dsp {
         0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
     };
 
-    
-
-    __host__ int create_spectogram(vector<float> *ts, int NFFT, int noverlap);
-
     __host__ int DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT);
 
     __host__ void FFT(const float* samples, complex<double>* freqs, const int num_samples);
@@ -70,8 +66,6 @@ namespace dsp {
     __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples);
     
     __host__ int cuSTFT(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap);
-
-    // __global__ void STFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples, int step);
 
     __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step);
 
