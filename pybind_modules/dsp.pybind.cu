@@ -27,7 +27,17 @@ inline void mallocAssert(void* pointer, const char *file, int line, bool abort=t
     }
 }
 
-/* calculates the complex float exponent */
+/*
+    Description: Calculates an exponent to the z power where z is a complex float
+    Inputs:
+        cuFloatComplex z -- the power to raise euler's constant to
+    Outputs:
+        None
+    Returns:
+        cuFloatComplex res -- euler's constant raised to z
+    Effects:
+        None
+*/
 __device__ __forceinline__ cuFloatComplex my_cexpf (cuFloatComplex z) {
     cuFloatComplex res;
     float t = expf (z.x);
@@ -37,6 +47,17 @@ __device__ __forceinline__ cuFloatComplex my_cexpf (cuFloatComplex z) {
     return res;
 }
 
+/*
+    Description: Calculates an exponent to the z power where z is a complex double
+    Inputs:
+        cuDoubleComplex z -- the power to raise euler's constant to
+    Outputs:
+        None
+    Returns:
+        cuDoubleComplex res -- euler's constant raised to z
+    Effects:
+        None
+*/
 __device__ __forceinline__ cuDoubleComplex my_cexp (cuDoubleComplex z) {
     cuDoubleComplex res;
     double t = exp (z.x);
@@ -46,14 +67,25 @@ __device__ __forceinline__ cuDoubleComplex my_cexp (cuDoubleComplex z) {
     return res;
 }
 
-int test_function () {return 1;}
-
+/*
+    Description: Tests that CUDA is setup and vector addition runs successfully on a GPU
+    Inputs:
+        None
+    Outputs:
+        None
+    Returns:
+        int 1 -- returns 1 if function was successful
+    Effects:
+        Utilizes GPU
+*/
 __host__ int test_cuda(){
-    int N = 10000000;
+    int N = 10000000; // length of vector arrays
 
+    /* initialize host and device pointers */
     float *a, *b, *out;
     float *d_a, *d_b, *d_out;
 
+    /* allocate memory for host pointers */
     a = (float*)malloc(sizeof(float) * N);
     b = (float*)malloc(sizeof(float) * N);
     out = (float*)malloc(sizeof(float) * N);
@@ -62,7 +94,7 @@ __host__ int test_cuda(){
 	    *(b + i) = 1.0;
     }
 
-    // Allocate device memory for a
+    // Allocate device memory for devices
     cudaMalloc((void**)&d_a, sizeof(float) * N);
     cudaMalloc((void**)&d_b, sizeof(float) *N);
     cudaMalloc((void**)&d_out, sizeof(float) *N);
@@ -70,15 +102,23 @@ __host__ int test_cuda(){
     // Transfer data from host to device memory
     cudaMemcpy(d_a, a, sizeof(float) * N, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b, sizeof(float) * N, cudaMemcpyHostToDevice);
+
+    /* Initialize dimensions */
     dim3 gridDim(ceil(1.0*N/1024), 1, 1);
     dim3 blockDim(1024, 1, 1);
+
+    /* Kernel invocation */
     dsp::vector_add<<<gridDim,blockDim>>>(d_out, d_a, d_b, N);
+
+    /* Syncrhonize and copy data back */
     cudaDeviceSynchronize();
     cudaMemcpy(out, d_out, sizeof(float) * N, cudaMemcpyDeviceToHost);
+
+    /* Print first 10 results */
     for (int i = 0; i < 10; i++)
 	    printf("%f ", *(out + i));
    
-    // Cleanup after kernel execution
+    /* Free host and device pointers */
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_out);
@@ -87,9 +127,21 @@ __host__ int test_cuda(){
     free(b);
     free(out);
 
+    /* Return successful*/
     return 1;
 }
 
+/*
+    Description: Python host code for calling Fast Fourier Transform GPU kernel
+    Inputs: 
+        vector<float> samples -- time series array
+    Outputs:
+        None
+    Returns:
+        vector<complex<double>> -- array of complex frequencies
+    Effects:
+        Invokes a kernel on the GPU
+*/
 __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
     /* NOTE: complex<double> on host seems to cast well with cuDoubleComplex but not sure if always true */
     int num_samples = samples.size();
@@ -128,9 +180,23 @@ __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
     gpuErrchk(cudaFree(device_samples));
     gpuErrchk(cudaFree(device_freqs));
 
+    /* return frequencies vector */
     return freqs;
 }
 
+/*
+    Description: Python host code for calling the Short Time Fourier Transform GPU kernel
+    Inputs:
+        vector<float> samples -- time series array
+        int sample_rate -- rate at which analagous signal was sampled
+        int NFFT -- number of samples per segment and the size of their FFT's
+        int noverlap -- number of samples to overlap between segments
+        bool one_sided -- whether to return real or both sides of the STFT
+    Outputs:
+        None
+    Returns:
+        vector<vector<double>> -- 2D array of frequencies over time
+*/
 __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided) {
 
     /* initialization */
@@ -171,9 +237,6 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
     dim3 gridDim(num_ffts, 1, 1);
 
-    // printf("block dim: x.%d, y.%d, z.%d\n", blockDim.x, blockDim.y, blockDim.z);
-    // printf("grid dim: x.%d, y.%d, z.%d\n", gridDim.x, gridDim.y, gridDim.z);
-
     /* kernel invocation */
     dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step);
 
@@ -188,12 +251,12 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     gpuErrchk(cudaFree(device_samples));
     gpuErrchk(cudaFree(device_freqs));
 
-    int one_sided_nfft = one_sided ? NFFT / 2 + 1 : NFFT;
+    /* Create and return vector; Determine if all or half of the frequencies will be returned */
+    int one_sided_nfft = one_sided ? NFFT / 2 + 1 : NFFT; // number of samples to return
     vector<vector<double>> xns(one_sided_nfft, vector<double>(num_ffts, 0.0));
     for (int i = 0; i < one_sided_nfft; i++) {
         for (int j = 0; j < num_ffts; j++) {
             xns[i][j] = freqs[i * num_ffts + j];
-            // xns[i][j] = complex<double>(freqs[i * num_ffts + j].x, freqs[i * num_ffts + j].y);
         }
     }
 
@@ -202,16 +265,17 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     return xns;
 }
 
+/*
+    Description: Module to be imported by a Python file describing how each function should be interpreted
+*/
 PYBIND11_MODULE(dsp_module, module_handle) {
     module_handle.doc() = "I'm a docstring hehe";
     module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
     module_handle.def("cuFFT", &pybind_cuFFT, py::return_value_policy::copy);
-    // module_handle.def("cuSTFT", &pybind_cuSTFT, py::return_value_policy::copy);
     module_handle.def("cuSTFT", [](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided) {
         py::array out = py::cast(pybind_cuSTFT(samples, sample_rate, NFFT, noverlap, one_sided));
         return out;
     }, py::arg("samples"), py::arg("sample_rate"), py::arg("NFFT"), py::arg("noverlap"), py::arg("one_sided"), py::return_value_policy::move);
-    module_handle.def("test_func", &test_function);
     module_handle.def("test_cuda", &test_cuda);
 /* commented out but kept for reference for adding a class */
 

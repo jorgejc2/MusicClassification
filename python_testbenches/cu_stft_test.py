@@ -165,7 +165,7 @@ class testbench():
             print("num_notclose: {}, total: {}, error: {}, error_threshold: {}".format(num_notclose, total, num_notclose/total, percent_error_threshold))
             print("cu_stft.shape(): {}, signal.stft.shape: {}".format(result.shape, stft_results.shape))
             plt.title("Scipy STFT")
-            plt.
+            # plt.
             plt.pcolormesh(t, f, (stft_results))
             plt.savefig(dir_path + '/MatplotGraphs/stft_results.png')
             plt.show()

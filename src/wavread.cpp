@@ -5,6 +5,17 @@ wavFileReader::wavFileReader() {}
 wavFileReader::~wavFileReader() {};
 
 // find the file size
+/*
+    Description: Get the size of the .wav file in bytes
+    Inputs:
+        FILE* fileObj -- .wav file object
+    Outputs:
+        None
+    Returns:
+        int -- size of .wav file in bytes
+    Effects:
+        None
+*/
 int wavFileReader::_getFileSize(FILE* fileObj)
 {
     int fileSize = 0;
@@ -20,7 +31,21 @@ int wavFileReader::_getFileSize(FILE* fileObj)
     return fileSize;
 }
 
+/*
+    Description: Takes a .wav file name and returns an array of its samples
+    Inputs:
+        const char* fileIn -- string containing the relative path and name of the file
+        int display -- if set, prints information about the .wav file
+    Outputs:
+        int8_t** wav_buffer -- array holding the array of samples from the .wav file
+    Returns:
+        int -- -1 if operation was unsuccessful, else size of wav_buffer
+    Effects:
+        Allocates memory towards wav_buffer which caller must eventually deallocate
+*/
 int wavFileReader::readFile(int8_t **wav_buffer, const char* fileIn, int display = 1) {
+
+    /* Check if .wav file can be opened */
     if (fileIn == nullptr) {
         fprintf(stderr, "Please set the current wav file to read from");
         return -1;
@@ -31,16 +56,19 @@ int wavFileReader::readFile(int8_t **wav_buffer, const char* fileIn, int display
         fprintf(stderr, "Unable to open wave file: %s\n", fileIn);
         return -1;
     }
-    //Read the header
+
+    /* Read the .wav header */
     wav_hdr wavHeader;
     int headerSize = sizeof(wav_hdr), filelength = _getFileSize(wavFile), samplelength = filelength - headerSize;
     size_t bytesRead = fread(&wavHeader, 1, headerSize, wavFile);
     size_t totalBytesRead = 0;
     cout << "Header Read " << bytesRead << " bytes." << endl;
     cout << "Samplelength " << samplelength << endl;
+
+
     if (bytesRead > 0)
     {
-        //Read the data
+        /* Read the data */
         uint16_t bytesPerSample = wavHeader.bitsPerSample / 8;      //Number     of bytes per sample
         uint64_t numSamples = wavHeader.ChunkSize / bytesPerSample; //How many samples are in the wav file?
         static const uint16_t BUFFER_SIZE = 4096; // read 4096 bytes at a time
