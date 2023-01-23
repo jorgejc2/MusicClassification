@@ -10,6 +10,12 @@ set_target_properties(dsp
     CUDA_VISIBILITY_PRESET "hidden"
 )
 
+set_target_properties(wavreader
+    PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CUDA_VISIBILITY_PRESET "hidden"
+)
+
 target_include_directories(wavreader
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../include

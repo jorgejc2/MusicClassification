@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.17)
 project(MusicClassification CXX CUDA)
 
+# set CMAKE policy
 message("Using CMake version ${CMAKE_VERSION}")
 if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
     message("Using cmake policy CMP0104 OLD")

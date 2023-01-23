@@ -1,10 +1,5 @@
 #include "dsp/dsp.h"
-// #include <pybind11/pybind11.h>
-// #include <pybind11/stl.h>
-// #include <pybind11/numpy.h>
 #include <iostream>
-
-// namespace py = pybind11;
 
 /* checks for CUDA errors */
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }

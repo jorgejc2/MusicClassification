@@ -2,6 +2,7 @@
 
 int main(int argc, char* argv[])
 {
+    /* take a string argument to a relative file path to open */
     const char* filePath;
     string input;
     if (argc <= 1)
@@ -32,14 +33,14 @@ int main(int argc, char* argv[])
     int16_t* wav_samples_16 = (int16_t *)wav_samples;
 
     /* save results to a file */
-    FILE *fp;
-    fp = fopen("../../OutputText/c_out.txt", "w");
+    // FILE *fp;
+    // fp = fopen("../../OutputText/c_out.txt", "w");
 
-    for (int i = 0; i < num_samples/2; i++) {
-    fprintf(fp, "%d \n", (int)wav_samples_16[i]);
-    }
+    // for (int i = 0; i < num_samples/2; i++) {
+    // fprintf(fp, "%d \n", (int)wav_samples_16[i]);
+    // }
 
-    fclose(fp);
+    // fclose(fp);
 
     /* free pointer holding the wav sample data */
     delete [] wav_samples;
