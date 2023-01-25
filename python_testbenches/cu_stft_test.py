@@ -166,15 +166,22 @@ class testbench():
             print("num_notclose: {}, total: {}, error: {}, error_threshold: {}".format(num_notclose, total, num_notclose/total, percent_error_threshold))
             print("cu_stft.shape(): {}, signal.stft.shape: {}".format(result.shape, stft_results.shape))
             plt.title("Scipy STFT")
-            # plt.
+            plt.xlabel("Time (sec)")
+            plt.ylabel("Frequency (Hz)")
             plt.pcolormesh(t, f, (stft_results))
+            plt.colorbar(format="%+2.f dB")
             plt.savefig(dir_path + '/MatplotGraphs/stft_results.png')
             plt.show()
+            plt.close()
 
             plt.title("cu_STFT")
+            plt.xlabel("Time (sec)")
+            plt.ylabel("Frequency (Hz)")
             plt.pcolormesh(t_copy, f, (result))
+            plt.colorbar(format="%+2.f dB")
             plt.savefig(dir_path + '/MatplotGraphs/cuSTFT_results.png')
             plt.show()
+            plt.close()
 
         self.tb_results["ringtone_test"] = tb_result
 
@@ -234,21 +241,19 @@ class testbench():
             plt.xlabel("Time (sec)")
             plt.ylabel("Frequency (Hz)")
             plt.pcolormesh(t, f, (stft_results))
-            cbar = plt.colorbar()
-            cbar.ax.get_yaxis().labelpad = 15
-            cbar.ax.set_ylabel('Power Spectral Density (dB)', rotation=270)
+            plt.colorbar(format="%+2.f dB")
             plt.savefig(dir_path + '/MatplotGraphs/stft_results_GTZAN.png')
             plt.show()
+            plt.close()
 
             plt.title("cu_STFT")
             plt.xlabel("Time (sec)")
             plt.ylabel("Frequency (Hz)")
             plt.pcolormesh(t_copy, f, (result))
-            cbar = plt.colorbar()
-            cbar.ax.get_yaxis().labelpad = 15
-            cbar.ax.set_ylabel('Power Spectral Density (dB)', rotation=270)
+            plt.colorbar(format="%+2.f dB")
             plt.savefig(dir_path + '/MatplotGraphs/cuSTFT_results_GTZAN.png')
             plt.show()
+            plt.close()
 
         self.tb_results["GTZAN_test"] = tb_result
 
