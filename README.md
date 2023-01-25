@@ -49,10 +49,10 @@ After setting up CUDA for your machine, run the following commands to get other 
 **NOTE:** I will be updating this very soon since there is one command missing that specifies CMake to not use BOOST but I need to rediscover this command. This is an issue since building the project generates a BOOST error even though this repo is perfectly capable of working without the BOOST library. 
 
 ```sh
-# setting up and upgrading CMake
+# setting up and upgrading CMake (from https://askubuntu.com/questions/355565/how-do-i-install-the-latest-version-of-cmake-from-the-command-line, answered by Himel)
 $ sudo apt purge --auto-remove cmake
 $ wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor $ - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
-$ sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
+$ sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main' # this is specific to Ubuntu 20.04
 $ sudo apt update
 $ sudo apt install cmake
 
