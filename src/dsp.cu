@@ -466,7 +466,7 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     /* return Power Spectral Density value of output */
     double abs_in = cuCabs(in(tx, sw)); // absolute value of final output
     if (tx < nfft) 
-        freqs[tx*num_ffts + bx] = 5.0 * log10( (abs_in*abs_in) / (sample_rate*nfft) );
+        freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*nfft) );
 
     #undef in
     #undef twiddle

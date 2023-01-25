@@ -12,21 +12,7 @@ using std::endl;
 using std::fstream;
 using std::string;
 
-class wavFileReader {
-
-    public:
-
-    wavFileReader();
-
-    ~wavFileReader();
-
-    int readFile(int8_t **wav_buffer, const char* fileIn, int display);
-
-    private:
-
-    int _getFileSize(FILE* fileObj);
-
-    typedef struct  WAV_HEADER
+typedef struct  WAV_HEADER
     {
         /* RIFF Chunk Descriptor */
         uint8_t         RIFF[4];        // RIFF Header Magic header
@@ -46,6 +32,21 @@ class wavFileReader {
         uint32_t        Subchunk2Size;  // Sampled data length
     } wav_hdr;
 
+class wavFileReader {
+
+    public:
+
+    wavFileReader();
+
+    ~wavFileReader();
+
+    int readFile(int8_t **wav_buffer, const char* fileIn, int display);
+
+    wav_hdr getWavHdr(const char* fileIn);
+
+    private:
+
+    int _getFileSize(FILE* fileObj);
     
 };
 

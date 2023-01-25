@@ -31,6 +31,26 @@ int wavFileReader::_getFileSize(FILE* fileObj)
     return fileSize;
 }
 
+wav_hdr wavFileReader::getWavHdr(const char* fileIn) {
+    /* Check if .wav file can be opened */
+    wav_hdr wavHeader;
+    if (fileIn == nullptr) {
+        fprintf(stderr, "Please set the current wav file to read from");
+        return wavHeader;
+    }
+    FILE* wavFile = fopen(fileIn, "r");
+    if (wavFile == nullptr)
+    {
+        fprintf(stderr, "Unable to open wave file: %s\n", fileIn);
+        return wavHeader;
+    }
+
+    int headerSize = sizeof(wav_hdr), filelength = _getFileSize(wavFile), samplelength = filelength - headerSize;
+    size_t bytesRead = fread(&wavHeader, 1, headerSize, wavFile);
+
+    return wavHeader;
+}
+
 /*
     Description: Takes a .wav file name and returns an array of its samples
     Inputs:
@@ -86,6 +106,8 @@ int wavFileReader::readFile(int8_t **wav_buffer, const char* fileIn, int display
             totalBytesRead += bytesRead;
             curr_offset += BUFFER_SIZE;
         }
+        // cout << "bytesPerSample " << bytesPerSample << endl;
+        // cout << "totalBytesRead " << totalBytesRead << endl;
 
         /* print information about the wav file if requested */
         if (display) {
