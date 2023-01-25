@@ -14,17 +14,55 @@ already existing functions from libraries in Python such as **Numpy** and **Scip
 
 ## Setup
 
+For first time setup on WSL with Ubuntu 20.04 on a computer with a NVIDIA RTX, run the following commands:
+
+```sh
+# in Windows Command Prompt
+wsl.exe --install
+wsl.exe --update
+C:\> wsl.exe
+
+# in WSL terminal
+$ sudo apt-key del 7fa2af80
+$ wget https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/$ cuda-wsl-ubuntu.pin
+$ sudo mv cuda-wsl-ubuntu.pin /etc/apt/preferences.d/cuda-repository-pin-600
+$ wget https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/$ cuda-repo-wsl-ubuntu-12-0-local_12.0.0-1_amd64.deb
+$ sudo dpkg -i cuda-repo-wsl-ubuntu-12-0-local_12.0.0-1_amd64.deb
+$ sudo cp /var/cuda-repo-wsl-ubuntu-12-0-local/cuda-*-keyring.gpg /usr/share/keyrings/
+$ sudo apt-get update
+$ sudo apt-get -y install cuda
+$ sudo apt install nvidia-cuda-toolkit
+
+# setting up and upgrading CMake
+$ sudo apt purge --auto-remove cmake
+$ wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor $ - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+$ sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
+$ sudo apt update
+$ sudo apt install cmake
+
+# installing Python and dev libraries
+$ sudo apt-get install python3
+$ sudo apt-get install python-dev
+
+# installing NumCPP (Note: do this in any directory)
+$ cd <NUMCPP_REPO_PATH>
+$ git clone https://github.com/dpilger26/NumCpp.git
+
+$ cd NumCpp
+$ mkdir build
+$ cd build
+$ cmake .. # might need to command to not use BOOST if BOOST is not installed
+$ cmake --build . --target install
+
+# in a different directory, clone this repo
+$ git clone https://github.com/jorgejc2/MusicClassification.git
+$ git submodule update --init
+```
+
 Go to into the *build/* directory and run:
 
 ```sh
-cmake ..
+$ cmake .. && make clean && make
 ```
 
-Afterwards, go into the *build/example/* directory and run:
-
-```sh
-make
-./main
-```
-
-This executable in the example directory will take a path from the user and extract the information from a .wav file into a .txt file. 
+Afterwards, you can find executables in *build/example/* directory and run them, or go to the root directory and run the files in *python_testbenches/*. Most of the code in *stft_introduction.ipynb* can run with out this entire set up process but some blocks of code that utilize the CUDA functions will not work since they must be compiled from the previous command. 
