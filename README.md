@@ -46,8 +46,6 @@ Again, the above commands are for setting up CUDA on WSL. If you are using a des
 
 After setting up CUDA for your machine, run the following commands to get other dependencies set up so that this repository can build. 
 
-**NOTE:** I will be updating this very soon since there is one command missing that specifies CMake to not use BOOST but I need to rediscover this command. This is an issue since building the project generates a BOOST error even though this repo is perfectly capable of working without the BOOST library. 
-
 ```sh
 # setting up and upgrading CMake (from https://askubuntu.com/questions/355565/how-do-i-install-the-latest-version-of-cmake-from-the-command-line, answered by Himel)
 $ sudo apt purge --auto-remove cmake
@@ -60,6 +58,9 @@ $ sudo apt install cmake
 $ sudo apt-get install python3
 $ sudo apt-get install python-dev
 
+# installing boost libraries 
+sudo apt install libboost-all-dev
+
 # installing NumCPP (Note: you can do this in any directory)
 $ cd <your_directory>
 $ git clone https://github.com/dpilger26/NumCpp.git
@@ -67,7 +68,7 @@ $ git clone https://github.com/dpilger26/NumCpp.git
 $ cd NumCpp
 $ mkdir build
 $ cd build
-$ cmake .. # need to find command that builds without BOOST
+$ cmake .. -DNUMCPP_NO_USE_BOOST=ON
 $ sudo cmake --build . --target install
 
 # in your preferred directory, you can finally set up this repository
