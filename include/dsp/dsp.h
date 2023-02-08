@@ -69,6 +69,10 @@ namespace dsp {
 
     __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window);
 
+    __host__ int cuWindow(float* samples, int num_samples, int NFFT, int window);
+
+    __global__ void window_Kernel(float* samples, const int num_samples, int window);
+
     /* if this is being used as a library, symbol copying must happen in this library */
     __host__ void cpy_to_symbol();
 

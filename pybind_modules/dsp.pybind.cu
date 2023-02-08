@@ -235,12 +235,19 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
 
+    /* set up window dimensions */
+    dim3 windowBlockDim(NFFT, 1, 1);
+    dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
+
+    /* apply window */
+    dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
+
     // Set dimensions
     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );

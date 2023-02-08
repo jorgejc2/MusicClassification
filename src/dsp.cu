@@ -364,12 +364,19 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
 
-    // Set dimensions
+    /* set up window dimensions */
+    dim3 windowBlockDim(NFFT, 1, 1);
+    dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
+
+    /* apply window */
+    dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
+
+    // Set up stft dimensions
     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
@@ -442,14 +449,14 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
                 // cospif_arg = 2*((float)input_idx/nfft);
                 // cospif_result = cospif(cospif_arg);
                 // windowed_sample = windowed_sample * (0.54 - 0.46 * cospif_result);
-                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * (0.54 - (0.46 * cospif(2*((float)input_idx/nfft)))), 0.0); 
+                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * (0.54 - (0.46 * cospif(2*(1.0*input_idx/(nfft-1))))), 0.0); 
                 break;
             case 2:
                 /* apply hanning window */
                 // cospif_arg = float(2*(1.0*input_idx/nfft));
                 // cospif_result = cospif(cospif_arg);
                 // windowed_sample = windowed_sample * 0.5 * (1 - cospif_result);
-                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * 0.5 * (1 - cospif(2*((float)input_idx/nfft))), 0.0); 
+                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * 0.5 * (1 - cospif(2*(1.0*input_idx/(nfft-1)))), 0.0); 
                 break;
         }
     }
@@ -495,10 +502,41 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     /* return Power Spectral Density value of output */
     double abs_in = cuCabs(in(tx, sw)); // absolute value of final output
     if (tx < nfft) 
-        freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*nfft) );
+        freqs[tx*num_ffts + bx] = 1.0 * log10( (abs_in*abs_in) / (sample_rate*nfft) );
 
     #undef in
     #undef twiddle
+}
+
+/*
+    Description: I will create a host function later for applying a window, but for now just need the kernel for the stft
+*/
+__host__ int dsp::cuWindow(float* samples, int num_samples, int NFFT, int window) {
+    return -1;
+}
+
+__global__ void dsp::window_Kernel(float* samples, const int num_samples, int window) {
+    int tx = threadIdx.x;
+    int bx = blockIdx.x;
+    int nfft = blockDim.x;
+    int sample_idx = bx * nfft + tx;
+
+    if (sample_idx < num_samples) {
+        switch (window) {
+            case 0:
+                /* do nothing, thus this kernel was pointless */
+                samples[sample_idx] = samples[sample_idx];
+                break;
+            case 1:
+                samples[sample_idx] = samples[sample_idx] * (0.54 - (0.46 * cospif(2*(1.0*tx/(nfft-1)))));
+                break;
+            case 2:
+                samples[sample_idx] = samples[sample_idx] * 0.5 * (1 - cospif(2*(1.0*tx/(nfft-1))));
+                break;
+        }
+    }
+        
+
 }
 
 /*
