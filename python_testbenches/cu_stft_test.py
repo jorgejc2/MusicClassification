@@ -120,7 +120,7 @@ class testbench():
         # concatenates the lists, doesn't sum their values like a numpy array
         ts = ts1 + ts_silence  + ts2
 
-        result = cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True)
+        result = cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True, 0)
         t_copy = np.linspace(0, len(ts)/sample_rate, result.shape[1])
         
         # calculate stft from scipy's library 
@@ -196,7 +196,7 @@ class testbench():
         ts = wav_out[1]
         sample_rate = wav_out[0]
 
-        result = cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True)
+        result = cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True, 0)
         t_copy = np.linspace(0, len(ts)/sample_rate, result.shape[1])
         
         # calculate stft from scipy's library 

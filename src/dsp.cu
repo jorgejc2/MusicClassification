@@ -327,7 +327,7 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
     Effects:
         Allocates memory towards freqs which caller must eventually deallocate
 */
-__host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap = -1) {
+__host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap = -1, int window = 0) {
 
     /* default noverlap */
     if (noverlap < 0)
@@ -354,6 +354,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
     gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
+    /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
     /* copy data to device and constant memory */
@@ -368,7 +369,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
@@ -394,6 +395,8 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
         const float* samples -- time series
         int sample_rate -- rate analogous signal was sampled
         int step -- step rate for indexing samples which is NFFT - noverlap
+        itn window -- the window to be applied to the input samples;
+                      0 = boxcar, 1 = hamming, 2 = hanning
     Outputs:
         double* __restrict__ freqs -- output array for frequencies
     Returns:
@@ -401,7 +404,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     Effects: 
         None
 */
-__global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step) {
+__global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window) {
 
     int tx = threadIdx.x; // thread ID
     int bx = blockIdx.x; // block ID
@@ -424,13 +427,39 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     input_idx = (unsigned int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]);
     input_idx = input_idx >> (32 - bit_shift);
     
-    /* copy inputs to shared memory */
-    if (tx < nfft)
-        in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx], 0.0); 
+    /* gather inputs, apply window, and place into shared memory */
+    if (tx < nfft) {
+        // float windowed_sample = samples[bx*step + tx];
+        // float cospif_arg = 0.0;
+        // float cospif_result = 0.0;
+        switch (window) {
+            case 0:
+                /* double check but boxcar window should be the same as mulipyling a sample by one */
+                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx], 0.0); 
+                break;
+            case 1:
+                /* apply hamming window; NOTE: cospif is CUDA cos where the argument is multiplied by pi */
+                // cospif_arg = 2*((float)input_idx/nfft);
+                // cospif_result = cospif(cospif_arg);
+                // windowed_sample = windowed_sample * (0.54 - 0.46 * cospif_result);
+                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * (0.54 - (0.46 * cospif(2*((float)input_idx/nfft)))), 0.0); 
+                break;
+            case 2:
+                /* apply hanning window */
+                // cospif_arg = float(2*(1.0*input_idx/nfft));
+                // cospif_result = cospif(cospif_arg);
+                // windowed_sample = windowed_sample * 0.5 * (1 - cospif_result);
+                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * 0.5 * (1 - cospif(2*((float)input_idx/nfft))), 0.0); 
+                break;
+        }
+    }
+        
 
     /* only need half the twiddle factors since they are symmetric */
     if (tx < nfft/2)
         twiddle(tx) = my_cexp(cuCdiv(cuCmul(cuCmul(make_cuDoubleComplex(0.0, -2.0), make_cuDoubleComplex(M_PI, 0.0)), make_cuDoubleComplex(tx, 0.0)), make_cuDoubleComplex(nfft, 0.0)));
+
+    
 
     /* perform FFT in stages */
     int gs = 2; // the size of each DFT being computed, thus N/gs is the number of groups

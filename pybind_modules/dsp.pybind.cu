@@ -192,12 +192,14 @@ __host__ vector<complex<double>> pybind_cuFFT(vector<float> samples) {
         int NFFT -- number of samples per segment and the size of their FFT's
         int noverlap -- number of samples to overlap between segments
         bool one_sided -- whether to return real or both sides of the STFT
+        int window -- the type of window to be applied to the input;
+                      0 = boxcar, 1 = Hamming, 2 = Hanning
     Outputs:
         None
     Returns:
         vector<vector<double>> -- 2D array of frequencies over time
 */
-__host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided) {
+__host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window) {
 
     /* initialization */
     int num_samples = samples.size(); // get number of samples
@@ -238,7 +240,7 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
@@ -272,10 +274,10 @@ PYBIND11_MODULE(dsp_module, module_handle) {
     module_handle.doc() = "I'm a docstring hehe";
     module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
     module_handle.def("cuFFT", &pybind_cuFFT, py::return_value_policy::copy);
-    module_handle.def("cuSTFT", [](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided) {
-        py::array out = py::cast(pybind_cuSTFT(samples, sample_rate, NFFT, noverlap, one_sided));
+    module_handle.def("cuSTFT", [](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window) {
+        py::array out = py::cast(pybind_cuSTFT(samples, sample_rate, NFFT, noverlap, one_sided, window));
         return out;
-    }, py::arg("samples"), py::arg("sample_rate"), py::arg("NFFT"), py::arg("noverlap"), py::arg("one_sided"), py::return_value_policy::move);
+    }, py::arg("samples"), py::arg("sample_rate"), py::arg("NFFT"), py::arg("noverlap"), py::arg("one_sided"), py::arg("window"), py::return_value_policy::move);
     module_handle.def("test_cuda", &test_cuda);
 /* commented out but kept for reference for adding a class */
 
