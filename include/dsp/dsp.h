@@ -73,6 +73,10 @@ namespace dsp {
 
     __global__ void window_Kernel(float* samples, const int num_samples, int window);
 
+    __host__ int cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int mel_filters);
+
+    __host__ void preemphasis(float* samples, int num_samples, int b);
+
     /* if this is being used as a library, symbol copying must happen in this library */
     __host__ void cpy_to_symbol();
 

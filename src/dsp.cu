@@ -539,6 +539,96 @@ __global__ void dsp::window_Kernel(float* samples, const int num_samples, int wi
 
 }
 
+__host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int mel_filters) {
+
+    /* apply a preemphasis filter on the samples */
+    preemphasis(samples, num_samples, preemphasis_b);
+
+    /* default noverlap */
+    if (noverlap < 0)
+        noverlap = NFFT / 2;
+
+    /* Determine how many FFT's need to be computed */
+    int step = NFFT - noverlap;
+    int num_ffts = ceil((float)num_samples/step);
+
+    /* trim FFT's that are out of bounds */
+    while ( num_ffts * step >= num_samples )
+        num_ffts--;
+
+    /* allocate array to hold frequencies */
+    int xns_size = num_ffts * NFFT;
+    printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
+    double* xns = (double*)malloc(xns_size*sizeof(double));
+    mallocErrchk(xns);
+
+    /* create device pointers */
+    float* device_samples;
+    double* device_freqs;
+
+    /* allocate memory for device and shared memory */
+    gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
+    /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
+    size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
+
+    /* copy data to device and constant memory */
+    gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
+    gpuErrchk(cudaMemcpy(device_samples, samples, num_samples*sizeof(float), cudaMemcpyHostToDevice));
+
+    /* get max threads per block and create dimensions */
+    int maxThreads = dsp::get_thread_per_block();
+
+    /* only apply a window if it is not the boxcar window */
+    if (window > 0) {
+
+        /* set up window dimensions */
+        dim3 windowBlockDim(NFFT, 1, 1);
+        dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
+
+        /* apply window */
+        dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
+    }
+
+    // Set up stft dimensions
+    dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
+    dim3 gridDim(num_ffts, 1, 1);
+
+    /* kernel invocation */
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0);
+
+    /* synchronize and copy data back to host */
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    gpuErrchk(cudaMemcpy(xns, device_freqs, xns_size*sizeof(double), cudaMemcpyDeviceToHost));
+    
+    /* free memory */
+    gpuErrchk(cudaFree(device_samples));
+    gpuErrchk(cudaFree(device_freqs));
+
+    /* set user pointer */
+    *freqs = xns;
+   
+    /* return size of frequency array */
+    return xns_size;
+}
+
+/*
+    Description: Applies a preemphasis filter of the z-transform function, H(z) = 1 - b*z^-1
+*/
+__host__ void preemphasis(float* samples, int num_samples, int b) {
+
+    float prev_sample = 0.0;
+    
+    for (int i = 0; i < num_samples; i++) {
+        samples[i] = samples[i] - b*prev_sample;
+        prev_sample = samples[i];
+    }
+
+    return;
+}
+
 /*
     Description: Copies reverse_table to constant memory on the GPU; Necessary since external 
     files importing this library are not able to copy the table to constant memory
