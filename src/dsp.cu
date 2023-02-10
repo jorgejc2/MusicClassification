@@ -376,7 +376,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
@@ -422,10 +422,12 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     int bit_shift = (int)log2f((float)nfft); // also corresponds to number of stages 
     int sw = 0; // flag for alternating computational buffers 
     extern __shared__ cuDoubleComplex shmem []; // will be used to hold the inputs/computations and 'twiddle' factors
+    double* window_mem = (double*)shmem;
 
     /* defines for simpler access to shared memory */
     #define in(i0, swi) shmem[swi*nfft + i0]
     #define twiddle(i0) shmem[2*nfft + i0]
+    #define w_in(i0) window_mem[i0]
 
     /* rearrange samples into necessary order in shared memory */
     for(int i = 0; i < 4; i++)
@@ -434,32 +436,9 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     input_idx = (unsigned int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]);
     input_idx = input_idx >> (32 - bit_shift);
     
-    /* gather inputs, apply window, and place into shared memory */
-    if (tx < nfft) {
-        // float windowed_sample = samples[bx*step + tx];
-        // float cospif_arg = 0.0;
-        // float cospif_result = 0.0;
-        switch (window) {
-            case 0:
-                /* double check but boxcar window should be the same as mulipyling a sample by one */
-                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx], 0.0); 
-                break;
-            case 1:
-                /* apply hamming window; NOTE: cospif is CUDA cos where the argument is multiplied by pi */
-                // cospif_arg = 2*((float)input_idx/nfft);
-                // cospif_result = cospif(cospif_arg);
-                // windowed_sample = windowed_sample * (0.54 - 0.46 * cospif_result);
-                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * (0.54 - (0.46 * cospif(2*(1.0*input_idx/(nfft-1))))), 0.0); 
-                break;
-            case 2:
-                /* apply hanning window */
-                // cospif_arg = float(2*(1.0*input_idx/nfft));
-                // cospif_result = cospif(cospif_arg);
-                // windowed_sample = windowed_sample * 0.5 * (1 - cospif_result);
-                in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * 0.5 * (1 - cospif(2*(1.0*input_idx/(nfft-1)))), 0.0); 
-                break;
-        }
-    }
+    /* place samples into shared memory */
+    if (tx < nfft)
+        in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx], 0.0); 
         
 
     /* only need half the twiddle factors since they are symmetric */
@@ -501,11 +480,39 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
 
     /* return Power Spectral Density value of output */
     double abs_in = cuCabs(in(tx, sw)); // absolute value of final output
+
+    __syncthreads(); // wait for every thread to grab their result so that we can repurpose shared memory
+
+    /* calculate window scaling factor */
+    double window_scaling_factor = (double)nfft; // defaults to length of fft if no window was applied
+
+    if (window == 1) {
+        w_in(tx) = (0.54 - (0.46 * cospif(2*(1.0*tx/(nfft-1))))) * (0.54 - (0.46 * cospif(2*(1.0*tx/(nfft-1)))));
+    }
+    else if (window == 2) {
+        w_in(tx) = (0.5 * (1 - cospif(2*(1.0*tx/(nfft-1))))) * (0.5 * (1 - cospif(2*(1.0*tx/(nfft-1)))));
+    }
+
+    if (window == 1 || window == 2) {
+        for (unsigned int stride = nfft / 2; stride >= 1; stride /= 2) {
+            __syncthreads();
+            if (tx < stride)
+                w_in(tx) += w_in(tx + stride);
+        }
+        __syncthreads();
+        window_scaling_factor = w_in(0); // load final sum as scaling factor
+    }
+    
+    /* load final magnitude into output as a tranposed matrix (rows are frequency bins, columns are windows)*/
     if (tx < nfft) 
-        freqs[tx*num_ffts + bx] = 1.0 * log10( (abs_in*abs_in) / (sample_rate*nfft) );
+        freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
+
+    
 
     #undef in
     #undef twiddle
+    #undef w_in
+
 }
 
 /*
@@ -542,7 +549,7 @@ __global__ void dsp::window_Kernel(float* samples, const int num_samples, int wi
 __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int mel_filters) {
 
     /* apply a preemphasis filter on the samples */
-    preemphasis(samples, num_samples, preemphasis_b);
+    dsp::preemphasis(samples, num_samples, preemphasis_b);
 
     /* default noverlap */
     if (noverlap < 0)
@@ -617,7 +624,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
 /*
     Description: Applies a preemphasis filter of the z-transform function, H(z) = 1 - b*z^-1
 */
-__host__ void preemphasis(float* samples, int num_samples, int b) {
+__host__ void dsp::preemphasis(float* samples, int num_samples, int b) {
 
     float prev_sample = 0.0;
     

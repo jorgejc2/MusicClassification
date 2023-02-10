@@ -212,7 +212,8 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     int num_ffts = ceil((float)num_samples/step);
 
     /* trim FFT's that are out of bounds */
-    while ( num_ffts * step >= num_samples )
+    // while ( num_ffts * step + NFFT > num_samples )
+    while ( (num_ffts - 1)*step + (NFFT - 1) >= num_samples)
         num_ffts--;
 
     /* create vector and host output */
@@ -247,7 +248,7 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
