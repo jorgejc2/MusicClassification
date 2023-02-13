@@ -327,7 +327,7 @@ __global__ void dsp::FFT_Kernel(const float* samples, cuDoubleComplex* __restric
     Effects:
         Allocates memory towards freqs which caller must eventually deallocate
 */
-__host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap = -1, int window = 0) {
+__host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap = -1, int window = 0, bool mag = false) {
 
     /* default noverlap */
     if (noverlap < 0)
@@ -376,7 +376,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, mag);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
@@ -411,7 +411,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     Effects: 
         None
 */
-__global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window) {
+__global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool mag) {
 
     int tx = threadIdx.x; // thread ID
     int bx = blockIdx.x; // block ID
@@ -480,6 +480,12 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
 
     /* return Power Spectral Density value of output */
     double abs_in = cuCabs(in(tx, sw)); // absolute value of final output
+
+    if (mag && tx < nfft) {
+        freqs[tx*num_ffts + bx] = abs_in * abs_in;
+        return;
+    }
+
 
     __syncthreads(); // wait for every thread to grab their result so that we can repurpose shared memory
 
@@ -602,7 +608,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0, true);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
