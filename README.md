@@ -83,4 +83,11 @@ Go to into the *build/* directory and run:
 $ cmake .. && make clean && make
 ```
 
+Finally, to get set up with using PyTorch, invoke the following commands. These will take a while since the tar files that get collected are fairly large. 
+
+```sh
+$ python3 -m pip install 'pycuda<2021.1'
+$ python3 -m pip install torch
+```
+
 Afterwards, you can find executables in the *build/example/* directory and run them, or go to the root directory and run the files in *python_testbenches/*. Most of the code in *stft_introduction.ipynb* can run with out this entire set up process but some blocks of code that utilize the CUDA functions will not work since they must be compiled from the previous commands. Only the *stft_introduction.ipynb* notebook is fully updated and goes into explanation on how the Short Time Fourier Transform works and demonstrates its usefulness for extracting frequency content from music files. I will later be cleaning and updating the *music_fft.ipynb.ipynb* notebook detailing what kind of features will be getting fed to the neural network and how the neural network will be designed. 
