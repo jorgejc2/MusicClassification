@@ -690,6 +690,9 @@ __host__ void dsp::get_device_properties()
         std::cout<<"Max grid dimensions: "<<deviceProp.maxGridSize[0]<<" x, "<<deviceProp.maxGridSize[1]<<" y, "<<deviceProp.maxGridSize[2]<<" z"<<std::endl;
         std::cout<<"Warp Size: "<<deviceProp.warpSize<<std::endl;
         std::cout<<"Size of cuDoubleComplex: "<<sizeof(cuDoubleComplex)<<endl;
+
+        std::cout<<"Concurrent Kernels: "<<deviceProp.concurrentKernels<<std::endl;
+        std::cout<<"Device Overlap: "<<deviceProp.deviceOverlap<<std::endl;
     }
 }
 
