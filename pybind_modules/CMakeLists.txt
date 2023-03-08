@@ -2,6 +2,7 @@ project(MusicClassification CXX CUDA)
 
 pybind11_add_module(dsp_module dsp.pybind.cu)
 pybind11_add_module(wav_module wav.pybind.cpp)
+pybind11_add_module(matrix_module matrix.pybind.cpp)
 
 target_link_libraries(dsp_module PUBLIC dsp)
 target_link_libraries(wav_module PUBLIC wavreader)

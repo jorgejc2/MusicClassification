@@ -281,6 +281,7 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
 PYBIND11_MODULE(dsp_module, module_handle) {
     module_handle.doc() = "I'm a docstring hehe";
     module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
+    module_handle.def("get_device_properties", &dsp::get_device_properties);
     module_handle.def("cuFFT", &pybind_cuFFT, py::return_value_policy::copy);
     module_handle.def("cuSTFT", [](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag) {
         py::array out = py::cast(pybind_cuSTFT(samples, sample_rate, NFFT, noverlap, one_sided, window, mag));

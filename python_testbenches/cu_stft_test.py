@@ -77,7 +77,7 @@ class testbench():
 
         self.tb_results["simple_one"] = tb_result
 
-    def ringtone_test(self, nfft: int = 256, noverlap: int = -1, percent_error_threshold: int = 0.01, visualize_output: bool = False):
+    def ringtone_test(self, nfft: int = 256, noverlap: int = -1, percent_error_threshold: int = 0.01, visualize_output: bool = False, use_defaults=False):
         """
         Description: FFT of two signals
         Inputs: 
@@ -87,6 +87,10 @@ class testbench():
         Returns: None
         Effects: updates tb_results
         """
+        if use_defaults:
+            nfft = 1024
+            noverlap = -1
+            
         sample_rate   = 4000
         length_ts_sec = 4
         ## --------------------------------- ##
@@ -119,8 +123,11 @@ class testbench():
         ## ------------------- ##
         # concatenates the lists, doesn't sum their values like a numpy array
         ts = ts1 + ts_silence  + ts2
-
-        result = cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True, 0)
+        result = None
+        if use_defaults:
+            result = cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True, 0, True)
+        else:
+            result = cu.cuSTFT(list(ts), sample_rate)
         t_copy = np.linspace(0, len(ts)/sample_rate, result.shape[1])
         
         # calculate stft from scipy's library 
@@ -184,6 +191,10 @@ class testbench():
             plt.close()
 
         self.tb_results["ringtone_test"] = tb_result
+
+    def test_defaults(self, visualize_output:bool = False):
+        self.ringtone_test(use_defaults=True, visualize_output=visualize_output)
+        cu.get_device_properties()
 
     def gztan_test(self, gztan_file: str = "../GTZAN/classical/classical.00000.wav", nfft: int = 256, noverlap: int = -1, percent_error_threshold: int = 0.01, visualize_output: bool = False):
 
@@ -263,8 +274,9 @@ if __name__ == "__main__":
 
     # running tests
     # tb.simple_one()
-    tb.ringtone_test(visualize_output=True)
-    tb.gztan_test("../GTZAN/pop/pop.00000.wav", visualize_output=True)
+    # tb.ringtone_test(visualize_output=True)
+    # tb.gztan_test("../GTZAN/pop/pop.00000.wav", visualize_output=True)
+    tb.test_defaults(visualize_output=True)
 
     # print results
     print(tb.tb_results)
