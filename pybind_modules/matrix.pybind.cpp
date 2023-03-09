@@ -1,111 +1,168 @@
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
-#include <iostream>
+#include "matrix_pybind/matrix_pybind.h"
 
-namespace py = pybind11;
+/* this is a constructor meant to be called from a c++ function, not from Python */
+py_Matrix::py_Matrix(int rows, int cols) : m_rows(rows), m_cols(cols) {
+    // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
+    m_data = new double[(size_t) (rows * cols)];
+    memset(m_data, 0, sizeof(double) * (size_t) (rows * cols));
+}
 
-// test_from_python / test_to_python:
-class Matrix {
-public:
-    /* this is a constructor meant to be called from a c++ function, not from Python */
-    Matrix(int rows, int cols) : m_rows(rows), m_cols(cols) {
-        // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-        m_data = new float[(size_t) (rows * cols)];
-        memset(m_data, 0, sizeof(float) * (size_t) (rows * cols));
+py_Matrix::py_Matrix(int rows, int cols, double* data) : m_rows(rows), m_cols(cols) {
+    m_data = data;
+}
+
+py_Matrix::py_Matrix(const py_Matrix &s) : m_rows(s.m_rows), m_cols(s.m_cols) {
+    // print_copy_created(this,
+    //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
+    m_data = new double[(size_t) (m_rows * m_cols)];
+    memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_rows * m_cols));
+}
+
+py_Matrix::py_Matrix(py_Matrix &&s) noexcept : m_rows(s.m_rows), m_cols(s.m_cols), m_data(s.m_data) {
+    // print_move_created(this);
+    s.m_rows = 0;
+    s.m_cols = 0;
+    s.m_data = nullptr;
+}
+
+py_Matrix::~py_Matrix() {
+    // print_destroyed(this,
+    //                 std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    delete[] m_data;
+}
+
+py_Matrix& py_Matrix::operator=(const py_Matrix &s) {
+    if (this == &s) {
+        return *this;
     }
+    // print_copy_assigned(this,
+    //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    delete[] m_data;
+    m_rows = s.m_rows;
+    m_cols = s.m_cols;
+    m_data = new double[(size_t) (m_rows * m_cols)];
+    memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_rows * m_cols));
+    return *this;
+}
 
-    Matrix(py::ssize_t rows, py::ssize_t cols) : m_rows(rows), m_cols(cols) {
-        // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-        m_data = new float[(size_t) (rows * cols)];
-        memset(m_data, 0, sizeof(float) * (size_t) (rows * cols));
-    }
-
-    Matrix(const Matrix &s) : m_rows(s.m_rows), m_cols(s.m_cols) {
-        // print_copy_created(this,
-        //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-        // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-        m_data = new float[(size_t) (m_rows * m_cols)];
-        memcpy(m_data, s.m_data, sizeof(float) * (size_t) (m_rows * m_cols));
-    }
-
-    Matrix(Matrix &&s) noexcept : m_rows(s.m_rows), m_cols(s.m_cols), m_data(s.m_data) {
-        // print_move_created(this);
+py_Matrix& py_Matrix::operator=(py_Matrix &&s) noexcept {
+    // print_move_assigned(this,
+    //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    if (&s != this) {
+        delete[] m_data;
+        m_rows = s.m_rows;
+        m_cols = s.m_cols;
+        m_data = s.m_data;
         s.m_rows = 0;
         s.m_cols = 0;
         s.m_data = nullptr;
     }
+    return *this;
+}
 
-    ~Matrix() {
-        // print_destroyed(this,
-        //                 std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-        delete[] m_data;
+double py_Matrix::operator()(int i, int j) const {
+    return m_data[(size_t) (i * m_cols + j)];
+}
+
+double &py_Matrix::operator()(int i, int j) {
+    return m_data[(size_t) (i * m_cols + j)];
+}
+
+double *py_Matrix::data() { return m_data; }
+
+py::ssize_t py_Matrix::rows() const { return m_rows; }
+py::ssize_t py_Matrix::cols() const { return m_cols; }
+py::tuple py_Matrix::shape() const { return py::make_tuple(m_rows, m_cols); }
+
+
+/* this is a constructor meant to be called from a c++ function, not from Python */
+py_Matrix3d::py_Matrix3d(int width, int rows, int cols) : m_width(width), m_rows(rows), m_cols(cols) {
+    // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
+    m_data = new double[(size_t) (width * rows * cols)];
+    memset(m_data, 0, sizeof(double) * (size_t) (width * rows * cols));
+}
+
+py_Matrix3d::py_Matrix3d(int width, int rows, int cols, double* data) : m_width(width), m_rows(rows), m_cols(cols) {
+    m_data = data;
+}
+
+py_Matrix3d::py_Matrix3d(const py_Matrix3d &s) : m_width(s.m_width), m_rows(s.m_rows), m_cols(s.m_cols) {
+    // print_copy_created(this,
+    //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
+    m_data = new double[(size_t) (m_width * m_rows * m_cols)];
+    memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_width * m_rows * m_cols));
+}
+
+py_Matrix3d::py_Matrix3d(py_Matrix3d &&s) noexcept : m_width(s.m_width), m_rows(s.m_rows), m_cols(s.m_cols), m_data(s.m_data) {
+    // print_move_created(this);
+    s.m_width = 0;
+    s.m_rows = 0;
+    s.m_cols = 0;
+    s.m_data = nullptr;
+}
+
+py_Matrix3d::~py_Matrix3d() {
+    // print_destroyed(this,
+    //                 std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    delete[] m_data;
+}
+
+py_Matrix3d& py_Matrix3d::operator=(const py_Matrix3d &s) {
+    if (this == &s) {
+        return *this;
     }
+    // print_copy_assigned(this,
+    //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    delete[] m_data;
+    m_width = s.m_width;
+    m_rows = s.m_rows;
+    m_cols = s.m_cols;
+    m_data = new double[(size_t) (m_width * m_rows * m_cols)];
+    memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_width * m_rows * m_cols));
+    return *this;
+}
 
-    Matrix &operator=(const Matrix &s) {
-        if (this == &s) {
-            return *this;
-        }
-        // print_copy_assigned(this,
-        //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+py_Matrix3d& py_Matrix3d::operator=(py_Matrix3d &&s) noexcept {
+    // print_move_assigned(this,
+    //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    if (&s != this) {
         delete[] m_data;
+        m_width = s.m_width;
         m_rows = s.m_rows;
         m_cols = s.m_cols;
-        m_data = new float[(size_t) (m_rows * m_cols)];
-        memcpy(m_data, s.m_data, sizeof(float) * (size_t) (m_rows * m_cols));
-        return *this;
+        m_data = s.m_data;
+        s.m_width = 0;
+        s.m_rows = 0;
+        s.m_cols = 0;
+        s.m_data = nullptr;
     }
+    return *this;
+}
 
-    Matrix &operator=(Matrix &&s) noexcept {
-        // print_move_assigned(this,
-        //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-        if (&s != this) {
-            delete[] m_data;
-            m_rows = s.m_rows;
-            m_cols = s.m_cols;
-            m_data = s.m_data;
-            s.m_rows = 0;
-            s.m_cols = 0;
-            s.m_data = nullptr;
-        }
-        return *this;
-    }
+double py_Matrix3d::operator()(int z, int i, int j) const {
+    return m_data[(size_t) (z*m_cols*m_rows + i * m_cols + j)];
+}
 
-    float operator()(py::ssize_t i, py::ssize_t j) const {
-        return m_data[(size_t) (i * m_cols + j)];
-    }
+double &py_Matrix3d::operator()(int z, int i, int j) {
+    return m_data[(size_t) (z*m_cols*m_rows + i * m_cols + j)];
+}
 
-    float operator()(int i, int j) const {
-        return m_data[(size_t) (i * m_cols + j)];
-    }
+double *py_Matrix3d::data() { return m_data; }
 
-    float &operator()(py::ssize_t i, py::ssize_t j) {
-        return m_data[(size_t) (i * m_cols + j)];
-    }
+py::ssize_t py_Matrix3d::rows() const { return m_rows; }
+py::ssize_t py_Matrix3d::cols() const { return m_cols; }
+py::ssize_t py_Matrix3d::width() const { return m_width; }
+py::tuple py_Matrix3d::shape() const { return py::make_tuple(m_width, m_rows, m_cols); }
 
-    float &operator()(int i, int j) {
-        return m_data[(size_t) (i * m_cols + j)];
-    }
-
-    float *data() { return m_data; }
-
-    py::ssize_t rows() const { return m_rows; }
-    py::ssize_t cols() const { return m_cols; }
-    py::tuple shape() const { return py::make_tuple(m_rows, m_cols); }
-
-private:
-    py::ssize_t m_rows;
-    py::ssize_t m_cols;
-    float *m_data;
-};
-
-Matrix c_created_data() {
+py_Matrix c_created_data() {
     int rows = 10;
     int cols = 10;
 
-    Matrix temp(10,10);
+    py_Matrix temp(10,10);
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             temp(i,j) = i;
@@ -114,50 +171,109 @@ Matrix c_created_data() {
     return temp;
 }
 
+py_Matrix3d c_created_3d_data() {
+    int rows = 10;
+    int cols = 10;
+    int width = 3;
+
+    py_Matrix3d temp(width, rows, cols);
+    for (int z = 0; z < width; z++) {
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < cols; j++) {
+                temp(z,i,j) = i;
+            }
+        }
+    }
+    return temp;
+}
+
 PYBIND11_MODULE(matrix_module, module_handle) {
     module_handle.doc() = "I'm a docstring hehe";
-    py::class_<Matrix>(module_handle, "Matrix", py::buffer_protocol())
+    py::class_<py_Matrix>(module_handle, "Matrix", py::buffer_protocol())
         .def(py::init<py::ssize_t, py::ssize_t>())
         /// Construct from a buffer
         .def(py::init([](const py::buffer &b) {
             py::buffer_info info = b.request();
-            if (info.format != py::format_descriptor<float>::format() || info.ndim != 2) {
+            if (info.format != py::format_descriptor<double>::format() || info.ndim != 2) {
                 throw std::runtime_error("Incompatible buffer format!");
             }
 
-            auto *v = new Matrix(info.shape[0], info.shape[1]);
-            memcpy(v->data(), info.ptr, sizeof(float) * (size_t) (v->rows() * v->cols()));
+            auto *v = new py_Matrix(info.shape[0], info.shape[1]);
+            memcpy(v->data(), info.ptr, sizeof(double) * (size_t) (v->rows() * v->cols()));
             return v;
         }))
 
-        .def("rows", &Matrix::rows)
-        .def("cols", &Matrix::cols)
-        .def("shape", &Matrix::shape)
+        .def("rows", &py_Matrix::rows)
+        .def("cols", &py_Matrix::cols)
+        .def("shape", &py_Matrix::shape)
 
         /// Bare bones interface
         .def("__getitem__",
-            [](const Matrix &m, std::pair<py::ssize_t, py::ssize_t> i) {
+            [](const py_Matrix &m, std::pair<py::ssize_t, py::ssize_t> i) {
                 if (i.first >= m.rows() || i.second >= m.cols()) {
                     throw py::index_error();
                 }
                 return m(i.first, i.second);
             })
         .def("__setitem__",
-            [](Matrix &m, std::pair<py::ssize_t, py::ssize_t> i, float v) {
+            [](py_Matrix &m, std::pair<py::ssize_t, py::ssize_t> i, double v) {
                 if (i.first >= m.rows() || i.second >= m.cols()) {
                     throw py::index_error();
                 }
                 m(i.first, i.second) = v;
             })
         /// Provide buffer access
-        .def_buffer([](Matrix &m) -> py::buffer_info {
+        .def_buffer([](py_Matrix &m) -> py::buffer_info {
             return py::buffer_info(
                 m.data(),                          /* Pointer to buffer */
                 {m.rows(), m.cols()},              /* Buffer dimensions */
-                {sizeof(float) * size_t(m.cols()), /* Strides (in bytes) for each index */
-                sizeof(float)});
+                {sizeof(double) * size_t(m.cols()), /* Strides (in bytes) for each index */
+                sizeof(double)});
+        });
+    py::class_<py_Matrix3d>(module_handle, "Matrix3d", py::buffer_protocol())
+        .def(py::init<py::ssize_t, py::ssize_t, py::ssize_t>())
+        /// Construct from a buffer
+        .def(py::init([](const py::buffer &b) {
+            py::buffer_info info = b.request();
+            if (info.format != py::format_descriptor<double>::format() || info.ndim != 3) {
+                throw std::runtime_error("Incompatible buffer format!");
+            }
+
+            auto *v = new py_Matrix3d(info.shape[0], info.shape[1], info.shape[2]);
+            memcpy(v->data(), info.ptr, sizeof(double) * (size_t) (v->width() * v->rows() * v->cols()));
+            return v;
+        }))
+
+        .def("width", &py_Matrix3d::width)
+        .def("rows", &py_Matrix3d::rows)
+        .def("cols", &py_Matrix3d::cols)
+        .def("shape", &py_Matrix3d::shape)
+
+        /// Bare bones interface
+        .def("__getitem__",
+            [](const py_Matrix3d &m, vector<py::ssize_t> i) {
+                if (i[0] >= m.width() || i[1] >= m.rows() || i[2] >= m.cols()) {
+                    throw py::index_error();
+                }
+                return m(i[0], i[1], i[2]);
+            })
+        .def("__setitem__",
+            [](py_Matrix3d &m, vector<py::ssize_t> i, double v) {
+                if (i[0] >= m.width() || i[1] >= m.rows() || i[2] >= m.cols()) {
+                    throw py::index_error();
+                }
+                m(i[0], i[1], i[2]) = v;
+            })
+        /// Provide buffer access
+        .def_buffer([](py_Matrix3d &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),                          /* Pointer to buffer */
+                {m.width(), m.rows(), m.cols()},              /* Buffer dimensions */
+                {sizeof(double)*size_t(m.rows())*size_t(m.cols()), sizeof(double) * size_t(m.cols()), /* Strides (in bytes) for each index */
+                sizeof(double)});
         });
     module_handle.def("c_return_data", &c_created_data);
+    module_handle.def("c_return_3d_data", &c_created_3d_data);
 }
 
 /*
@@ -165,8 +281,8 @@ PYBIND11_MODULE(matrix_module, module_handle) {
 */
 // PYBIND11_MODULE(matrix_module, module_handle) {
 //     module_handle.doc() = "I'm a docstring hehe";
-//     py::class_<Matrix>(module_handle, "Matrix", py::buffer_protocol())
-//    .def_buffer([](Matrix &m) -> py::buffer_info {
+//     py::class_<py_Matrix>(module_handle, "py_Matrix", py::buffer_protocol())
+//    .def_buffer([](py_Matrix &m) -> py::buffer_info {
 //         return py::buffer_info(
 //             m.data(),                               /* Pointer to buffer */
 //             sizeof(float),                          /* Size of one scalar */

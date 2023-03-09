@@ -108,15 +108,47 @@ class testbench():
         print("Testing np.where on np_test_matrix")
         print(np_test_matrix)
 
+    def simple_test_four(self):
+        # create a simple matrix and cast to numpy without allocating additional memory
+        test_matrix = myMatrix.c_return_3d_data()
+        print("test matrix: {}".format(test_matrix))
+        print("width: {}".format(test_matrix.width()))
+        print("rows: {}".format(test_matrix.rows()))
+        print("cols: {}".format(test_matrix.cols()))
+        print("data type: {}".format(type(test_matrix)))
+        print("data shape: {}".format(test_matrix.shape))
+        print("printing data in test_matrix")
+        for z in range(test_matrix.width()):
+            print("row: {}".format(z))
+            for i in range(test_matrix.rows()):
+                for j in range(test_matrix.cols()):
+                    print(test_matrix[z,i,j], end=' | ')
+                print('') # print a newline
+        print('')
+
+        for z in range(test_matrix.width()):
+            for i in range(test_matrix.rows()):
+                for j in range(test_matrix.cols()):
+                    test_matrix[z,i,j] = z
+
+        for z in range(test_matrix.width()):
+            print("row: {}".format(z))
+            for i in range(test_matrix.rows()):
+                for j in range(test_matrix.cols()):
+                    print(test_matrix[z,i,j], end=' | ')
+                print('') # print a newline
+        print('')
+
 
 if __name__ == "__main__":
     print("Current file path is " + dir_path + '\n')
     tb = testbench()
 
     # running tests
-    tb.simple_test_one()
-    tb.simple_test_two()
-    tb.simple_test_three()
+    # tb.simple_test_one()
+    # tb.simple_test_two()
+    # tb.simple_test_three()
+    tb.simple_test_four()
 
     # print results
     print(tb.tb_results)

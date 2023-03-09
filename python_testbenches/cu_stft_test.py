@@ -268,6 +268,78 @@ class testbench():
 
         self.tb_results["GTZAN_test"] = tb_result
 
+    def gztan_test_with_matrix(self, gztan_file: str = "../GTZAN/classical/classical.00000.wav", nfft: int = 256, noverlap: int = -1, percent_error_threshold: int = 0.01, visualize_output: bool = False):
+
+        # read in a wav file from the GZTAN dataset
+        wav_path = gztan_file
+
+        # use personal wav function reader
+        wav_out = wav.wavsamples(wav_path)
+        # unpack results
+        ts = wav_out[1]
+        sample_rate = wav_out[0]
+
+        result = np.array(cu.cuSTFT(list(ts), sample_rate, nfft, noverlap, True, 0), copy=False)
+        t_copy = np.linspace(0, len(ts)/sample_rate, result.shape[1])
+        
+        # calculate stft from scipy's library 
+        f, t, stft_results = scipy.signal.stft(ts, fs=sample_rate, window="boxcar", nperseg=nfft, noverlap=None if noverlap == -1 else noverlap, nfft=nfft, detrend=False, return_onesided=True, boundary=None, padded=False, axis=-1, scaling='psd')
+        # calculate power spectral density of every entry
+        stft_results = np.abs(stft_results)
+        stft_results = 20*np.log10(stft_results)
+
+        # scipy typically trims last time frame, so only check time frames that exists in both arrays
+        lesser_t_len = stft_results.shape[1] if stft_results.shape[1] < result.shape[1] else result.shape[1]
+
+        # automatically true if every match is close
+        correct_output = np.allclose(result[:,:lesser_t_len], stft_results[:,:lesser_t_len])
+
+        # find entries where result does not match with stft_results
+        num_notclose = 0
+        result_1D = result.ravel()
+        stft_results_1D = stft_results.ravel()
+        display_limit = 20
+        for i in range(lesser_t_len):
+            curr_stft = stft_results_1D[i]
+            curr_result = result_1D[i]
+            if not np.isclose(curr_stft, curr_result, rtol=1e-04):
+                # two entries were found not matching
+                num_notclose += 1
+                display_limit -= 1
+                if visualize_output and display_limit > 0: print("\tNot matching with values of scipy: {}, cu: {}".format(curr_stft, curr_result))
+
+        # total compared entries
+        total = stft_results.shape[0] * lesser_t_len
+        
+        # check if error is permissible for testbench
+        if num_notclose/total < percent_error_threshold:
+            correct_output = True
+
+        tb_result = correct_output
+
+        if visualize_output:
+            print("num_notclose: {}, total: {}, error: {}, error_threshold: {}".format(num_notclose, total, num_notclose/total, percent_error_threshold))
+            print("cu_stft.shape(): {}, signal.stft.shape: {}".format(result.shape, stft_results.shape))
+            plt.title("Scipy STFT")
+            plt.xlabel("Time (sec)")
+            plt.ylabel("Frequency (Hz)")
+            plt.pcolormesh(t, f, (stft_results))
+            plt.colorbar(format="%+2.f dB")
+            plt.savefig(dir_path + '/MatplotGraphs/stft_results_GTZAN.png')
+            plt.show()
+            plt.close()
+
+            plt.title("cu_STFT")
+            plt.xlabel("Time (sec)")
+            plt.ylabel("Frequency (Hz)")
+            plt.pcolormesh(t_copy, f, (result))
+            plt.colorbar(format="%+2.f dB")
+            plt.savefig(dir_path + '/MatplotGraphs/cuSTFT_results_GTZAN.png')
+            plt.show()
+            plt.close()
+
+        self.tb_results["GTZAN_test"] = tb_result
+
 if __name__ == "__main__":
     print("Current file path is " + dir_path + '\n')
     tb = testbench()
@@ -276,7 +348,8 @@ if __name__ == "__main__":
     # tb.simple_one()
     # tb.ringtone_test(visualize_output=True)
     # tb.gztan_test("../GTZAN/pop/pop.00000.wav", visualize_output=True)
-    tb.test_defaults(visualize_output=True)
+    tb.gztan_test_with_matrix("../GTZAN/pop/pop.00000.wav", visualize_output=True)
+    # tb.test_defaults(visualize_output=True)
 
     # print results
     print(tb.tb_results)

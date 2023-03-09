@@ -2,6 +2,7 @@ project(MusicClassification CXX CUDA)
 
 add_library(wavreader wavread.cpp)
 add_library(dsp dsp.cu)
+add_library(matrix matrix.cpp)
 
 # so that it can be read in its pybind module counterpart
 set_target_properties(dsp 
@@ -22,6 +23,11 @@ target_include_directories(wavreader
 )
 
 target_include_directories(dsp
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+target_include_directories(matrix
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/../include
 )
