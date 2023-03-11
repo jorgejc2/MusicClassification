@@ -644,7 +644,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
     int num_ffts = ceil((float)num_samples/step);
 
     /* trim FFT's that are out of bounds */
-    while ( num_ffts * step >= num_samples )
+    while ( (num_ffts - 1)*step + (NFFT - 1) >= num_samples)
         num_ffts--;
 
     /* allocate array to hold frequencies */

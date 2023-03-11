@@ -5,15 +5,15 @@ project(MusicClassification CXX CUDA)
 # so the dsp_module has to recompile the matrix pybind source file
 pybind11_add_module(dsp_module 
     dsp.module.cu
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp.pybind.cu
+    # ${CMAKE_CURRENT_SOURCE_DIR}/../src/dsp.pybind.cu
 )
 pybind11_add_module(wav_module 
     wav.module.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/wav.pybind.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/../src/wav.pybind.cpp
 )
 pybind11_add_module(matrix_module 
     matrix.module.cu
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src/matrix.pybind.cpp
+    # ${CMAKE_CURRENT_SOURCE_DIR}/../src/matrix.pybind.cpp
 )
 
 target_link_libraries(wav_module PUBLIC wavreader)
