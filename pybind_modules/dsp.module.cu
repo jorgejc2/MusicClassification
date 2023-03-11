@@ -12,9 +12,6 @@ PYBIND11_MODULE(dsp_module, module_handle) {
         py::array out = py::cast(pybind_cuSTFT(samples, sample_rate, NFFT, noverlap, one_sided, window, mag));
         return out;
     }, py::arg("samples"), py::arg("sample_rate"), py::arg_v("NFFT", 1024, "int"), py::arg_v("noverlap", -1, "int"), py::arg_v("one_sided", true, "bool"), py::arg_v("window", 2,"int"), py::arg_v("mag", true, "bool"), py::return_value_policy::move);
-    // module_handle.def("cuSTFT_matrix",[](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag) {
-    //     return pybind_cuSTFT_matrix(samples, sample_rate, NFFT, noverlap, one_sided, window, mag);
-    // }, py::arg("samples"), py::arg("sample_rate"), py::arg_v("NFFT", 1024, "int"), py::arg_v("noverlap", -1, "int"), py::arg_v("one_sided", true, "bool"), py::arg_v("window", 2,"int"), py::arg_v("mag", true, "bool"));
     module_handle.def("test_cuda", &test_cuda);
 /* commented out but kept for reference for adding a class */
 

@@ -43,6 +43,50 @@ PYBIND11_MODULE(matrix_module, module_handle) {
                 {sizeof(double) * size_t(m.cols()), /* Strides (in bytes) for each index */
                 sizeof(double)});
         });
+
+    py::class_<py_stft_Matrix>(module_handle, "DSP_Matrix", py::buffer_protocol())
+        // .def(py::init<py::ssize_t, py::ssize_t>())
+        .def(py::init<vector<float>, int, int, int, bool, int, bool>())
+        /// Construct from a buffer
+        .def(py::init([](const py::buffer &b) {
+            py::buffer_info info = b.request();
+            if (info.format != py::format_descriptor<double>::format() || info.ndim != 2) {
+                throw std::runtime_error("Incompatible buffer format!");
+            }
+
+            auto *v = new py_stft_Matrix(info.shape[0], info.shape[1]);
+            memcpy(v->data(), info.ptr, sizeof(double) * (size_t) (v->rows() * v->cols()));
+            return v;
+        }))
+
+        .def("rows", &py_stft_Matrix::rows)
+        .def("cols", &py_stft_Matrix::cols)
+        .def("shape", &py_stft_Matrix::shape)
+
+        /// Bare bones interface
+        .def("__getitem__",
+            [](const py_stft_Matrix &m, std::pair<py::ssize_t, py::ssize_t> i) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                return m(i.first, i.second);
+            })
+        .def("__setitem__",
+            [](py_stft_Matrix &m, std::pair<py::ssize_t, py::ssize_t> i, double v) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                m(i.first, i.second) = v;
+            })
+        /// Provide buffer access
+        .def_buffer([](py_stft_Matrix &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),                          /* Pointer to buffer */
+                {m.rows(), m.cols()},              /* Buffer dimensions */
+                {sizeof(double) * size_t(m.cols()), /* Strides (in bytes) for each index */
+                sizeof(double)});
+        });
+
     py::class_<py_Matrix3d>(module_handle, "Matrix3d", py::buffer_protocol())
         .def(py::init<py::ssize_t, py::ssize_t, py::ssize_t>())
         /// Construct from a buffer

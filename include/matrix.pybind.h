@@ -4,8 +4,10 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
+#include "dsp.h"
 #include <iostream>
 #include <vector>
+#include <utility>
 
 using namespace std;
 
@@ -15,7 +17,8 @@ namespace py = pybind11;
 
 class py_Matrix {
     public:
-    py_Matrix(int rows, int cols);
+    py_Matrix();
+    explicit py_Matrix(int rows, int cols);
     py_Matrix(int rows, int cols, double* data);
     py_Matrix(const py_Matrix &s);
     py_Matrix(py_Matrix &&s) noexcept;
@@ -34,6 +37,12 @@ class py_Matrix {
     py::size_t m_cols;
     double *m_data;
 
+};
+
+class py_stft_Matrix : public py_Matrix {
+    public:
+    py_stft_Matrix(int rows, int cols) : py_Matrix::py_Matrix(rows, cols) {};
+    py_stft_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag);
 };
 
 class py_Matrix3d {

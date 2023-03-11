@@ -1,10 +1,16 @@
 #include "matrix.pybind.h"
 
+py_Matrix::py_Matrix() {
+    m_rows = 0;
+    m_cols = 0;
+    m_data = nullptr;
+}
 /* this is a constructor meant to be called from a c++ function, not from Python */
 py_Matrix::py_Matrix(int rows, int cols) : m_rows(rows), m_cols(cols) {
     // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    m_data = new double[(size_t) (rows * cols)];
+    // m_data = new double[(size_t) (rows * cols)];
+    m_data = (double*)malloc(rows*cols*sizeof(double));
     memset(m_data, 0, sizeof(double) * (size_t) (rows * cols));
 }
 
@@ -16,7 +22,8 @@ py_Matrix::py_Matrix(const py_Matrix &s) : m_rows(s.m_rows), m_cols(s.m_cols) {
     // print_copy_created(this,
     //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    m_data = new double[(size_t) (m_rows * m_cols)];
+    // m_data = new double[(size_t) (m_rows * m_cols)];
+    m_data = (double*)malloc(m_rows*m_cols*sizeof(double));
     memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_rows * m_cols));
 }
 
@@ -30,7 +37,8 @@ py_Matrix::py_Matrix(py_Matrix &&s) noexcept : m_rows(s.m_rows), m_cols(s.m_cols
 py_Matrix::~py_Matrix() {
     // print_destroyed(this,
     //                 std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-    delete[] m_data;
+    // delete[] m_data;
+    free(m_data);
 }
 
 py_Matrix& py_Matrix::operator=(const py_Matrix &s) {
@@ -39,10 +47,12 @@ py_Matrix& py_Matrix::operator=(const py_Matrix &s) {
     }
     // print_copy_assigned(this,
     //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-    delete[] m_data;
+    // delete[] m_data;
+    free(m_data);
     m_rows = s.m_rows;
     m_cols = s.m_cols;
-    m_data = new double[(size_t) (m_rows * m_cols)];
+    // m_data = new double[(size_t) (m_rows * m_cols)];
+    m_data = (double*)malloc(m_rows*m_cols*sizeof(double));
     memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_rows * m_cols));
     return *this;
 }
@@ -51,7 +61,8 @@ py_Matrix& py_Matrix::operator=(py_Matrix &&s) noexcept {
     // print_move_assigned(this,
     //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
     if (&s != this) {
-        delete[] m_data;
+        // delete[] m_data;
+        free(m_data);
         m_rows = s.m_rows;
         m_cols = s.m_cols;
         m_data = s.m_data;
@@ -76,12 +87,27 @@ py::ssize_t py_Matrix::rows() const { return m_rows; }
 py::ssize_t py_Matrix::cols() const { return m_cols; }
 py::tuple py_Matrix::shape() const { return py::make_tuple(m_rows, m_cols); }
 
+/****************/
+/*
+    Definition of py_stft_Matrix class that extends py_Matrix
+*/
+/****************/
+py_stft_Matrix::py_stft_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag) {
+    pair<int,int> init_dimensions;
+    double** set_m_data = &m_data;
+    dsp::cuSTFT_vector_in(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, one_sided, window, mag);
+    m_rows = init_dimensions.first;
+    m_cols = init_dimensions.second;
+    cout<<"rows: "<<m_cols<<endl;
+    cout<<"cols: "<<m_cols<<endl;
+}
 
 /* this is a constructor meant to be called from a c++ function, not from Python */
 py_Matrix3d::py_Matrix3d(int width, int rows, int cols) : m_width(width), m_rows(rows), m_cols(cols) {
     // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    m_data = new double[(size_t) (width * rows * cols)];
+    // m_data = new double[(size_t) (width * rows * cols)];
+    m_data = (double*)malloc(width*rows*cols*sizeof(double));
     memset(m_data, 0, sizeof(double) * (size_t) (width * rows * cols));
 }
 
@@ -93,7 +119,8 @@ py_Matrix3d::py_Matrix3d(const py_Matrix3d &s) : m_width(s.m_width), m_rows(s.m_
     // print_copy_created(this,
     //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
     // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
-    m_data = new double[(size_t) (m_width * m_rows * m_cols)];
+    // m_data = new double[(size_t) (m_width * m_rows * m_cols)];
+    m_data = (double*)malloc(m_width*m_rows*m_cols*sizeof(double));
     memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_width * m_rows * m_cols));
 }
 
@@ -108,7 +135,8 @@ py_Matrix3d::py_Matrix3d(py_Matrix3d &&s) noexcept : m_width(s.m_width), m_rows(
 py_Matrix3d::~py_Matrix3d() {
     // print_destroyed(this,
     //                 std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-    delete[] m_data;
+    // delete[] m_data;
+    free(m_data);
 }
 
 py_Matrix3d& py_Matrix3d::operator=(const py_Matrix3d &s) {
@@ -117,11 +145,13 @@ py_Matrix3d& py_Matrix3d::operator=(const py_Matrix3d &s) {
     }
     // print_copy_assigned(this,
     //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
-    delete[] m_data;
+    // delete[] m_data;
+    free(m_data);
     m_width = s.m_width;
     m_rows = s.m_rows;
     m_cols = s.m_cols;
-    m_data = new double[(size_t) (m_width * m_rows * m_cols)];
+    // m_data = new double[(size_t) (m_width * m_rows * m_cols)];
+    m_data = (double*)malloc(m_width*m_rows*m_cols*sizeof(double));
     memcpy(m_data, s.m_data, sizeof(double) * (size_t) (m_width * m_rows * m_cols));
     return *this;
 }
@@ -130,7 +160,8 @@ py_Matrix3d& py_Matrix3d::operator=(py_Matrix3d &&s) noexcept {
     // print_move_assigned(this,
     //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
     if (&s != this) {
-        delete[] m_data;
+        // delete[] m_data;
+        free(m_data);
         m_width = s.m_width;
         m_rows = s.m_rows;
         m_cols = s.m_cols;

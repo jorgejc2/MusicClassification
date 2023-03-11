@@ -6,6 +6,8 @@
 #include <complex>
 #include <cmath>
 #include <chrono>
+#include <iostream>
+#include <utility>
 #include "cuComplex.h"
 
 using namespace std::chrono;
@@ -65,7 +67,9 @@ namespace dsp {
 
     __global__ void FFT_Kernel(const float* samples, cuDoubleComplex* __restrict__ freqs, const int num_samples);
     
-    __host__ int cuSTFT(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, bool mag);
+    __host__ int cuSTFT(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, bool one_sided, int window, bool mag);
+
+    __host__ int cuSTFT_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &stft_dimensions, int noverlap, bool one_sided, int window, bool mag);
 
     __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool mag);
 

@@ -129,7 +129,7 @@ int main(int argc, char* argv[])
     /* perform and time stft */
     printf("Calling cuSTFT\n");
     auto start = high_resolution_clock::now();
-    int num_freqs = dsp::cuSTFT(cuda_samples, &freqs, sample_rate, num_samples, NFFT, noverlap, 0, false);
+    int num_freqs = dsp::cuSTFT(cuda_samples, &freqs, sample_rate, num_samples, NFFT, noverlap, false, 0, false);
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<microseconds>(stop - start);
     cout << "Execution time: " << duration.count() << endl;
