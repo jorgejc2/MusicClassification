@@ -354,7 +354,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
 
     /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, num_ffts*NFFT*sizeof(double)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
     /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
@@ -426,7 +426,7 @@ __host__ int dsp::cuSTFT_vector_in(vector<float> &samples, double** freqs, int s
 
     /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, num_ffts*NFFT*sizeof(double)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
     /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
@@ -588,9 +588,11 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     
     /* load final magnitude into output as a tranposed matrix (rows are frequency bins, columns are windows)*/
     if ((tx < nfft) && (one_sided == false)) 
-        freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
+        // freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
+        freqs[tx*num_ffts + bx] = 20.0 * log10( sqrt((2*abs_in*abs_in) / (sample_rate*window_scaling_factor)) );
     else if ((tx < one_sided_nfft) && (one_sided == true)) 
-        freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
+        // freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
+        freqs[tx*num_ffts + bx] = 20.0 * log10( sqrt((2*abs_in*abs_in) / (sample_rate*window_scaling_factor)) );
     
 
     #undef in
@@ -648,7 +650,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
         num_ffts--;
 
     /* allocate array to hold frequencies */
-    int xns_size = num_ffts * NFFT;
+    int xns_size = num_ffts * (NFFT / 2 + 1);
     printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
     double* xns = (double*)malloc(xns_size*sizeof(double));
     mallocErrchk(xns);

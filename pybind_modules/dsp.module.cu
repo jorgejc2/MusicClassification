@@ -211,7 +211,9 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
         num_ffts--;
 
     /* create vector and host output */
-    int xns_size = num_ffts * NFFT;
+    /* allocate array to hold frequencies */
+    int one_sided_nfft = NFFT / 2 + 1;
+    int xns_size = one_sided ? num_ffts* one_sided_nfft : num_ffts * NFFT;
     double* freqs = (double*)malloc(xns_size*sizeof(double));
     mallocErrchk(freqs);
     /* create device pointers */
@@ -256,7 +258,7 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     gpuErrchk(cudaFree(device_freqs));
 
     /* Create and return vector; Determine if all or half of the frequencies will be returned */
-    int one_sided_nfft = one_sided ? NFFT / 2 + 1 : NFFT; // number of samples to return
+    one_sided_nfft = one_sided ? NFFT / 2 + 1 : NFFT; // number of samples to return
     vector<vector<double>> xns(one_sided_nfft, vector<double>(num_ffts, 0.0));
     for (int i = 0; i < one_sided_nfft; i++) {
         for (int j = 0; j < num_ffts; j++) {
