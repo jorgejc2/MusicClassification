@@ -1,4 +1,4 @@
-#include "matrix/matrix.h"
+#include "matrix.h"
 
 
 /* this is a constructor meant to be called from a c++ function, not from Python */

@@ -1,11 +1,5 @@
 // #include "dsp_pybind/dsp.pybind.h"
-#include "wav_pybind/wav.pybind.h"
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
-#include <pybind11/numpy.h>
-#include <iostream>
-
-namespace py = pybind11;
+#include "wav.pybind.h"
 
 /*
     Description: Returns array of samples from a wav file
@@ -49,17 +43,4 @@ vector<int16_t> pybind_wavread(char* fileIn, int* sample_rate) {
 
     /* return sample vector */
     return ret_samples;
-}
-
-/*
-    Description: Module to be imported by a Python file describing how each function should be interpreted
-*/
-PYBIND11_MODULE(wav_module, module_handle) {
-    module_handle.doc() = "I'm a docstring hehe";
-    module_handle.def("wavsamples", [](char* fileName) {
-        int sample_rate;
-        py::array_t<int16_t> out = py::cast(pybind_wavread(fileName, &sample_rate));
-        py::tuple out_tuple = py::make_tuple(sample_rate, out);
-        return out_tuple;
-    }, py::arg("fileName"), py::return_value_policy::move);
 }

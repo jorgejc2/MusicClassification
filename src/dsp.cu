@@ -1,4 +1,4 @@
-#include "dsp/dsp.h"
+#include "dsp.h"
 #include <iostream>
 
 /* checks for CUDA errors */

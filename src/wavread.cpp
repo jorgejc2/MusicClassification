@@ -1,4 +1,4 @@
-#include "wavreader/wavread.h"
+#include "wavread.h"
 
 wavFileReader::wavFileReader() {}
 

@@ -1,5 +1,4 @@
-#include "matrix_pybind/matrix_pybind.h"
-#include "dsp_pybind/dsp.pybind.h"
+#include "dsp.pybind.h"
 
 /* checks for CUDA errors */
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -270,109 +269,70 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     return xns;
 }
 
-__host__ py_Matrix* pybind_cuSTFT_matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag) {
+// __host__ py_Matrix* pybind_cuSTFT_matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag) {
 
-    /* initialization */
-    int num_samples = samples.size(); // get number of samples
+//     /* initialization */
+//     int num_samples = samples.size(); // get number of samples
 
-    /* default noverlap */
-    if (noverlap < 0)
-        noverlap = NFFT / 2;
+//     /* default noverlap */
+//     if (noverlap < 0)
+//         noverlap = NFFT / 2;
 
-    int step = NFFT - noverlap;
-    int num_ffts = ceil((float)num_samples/step);
+//     int step = NFFT - noverlap;
+//     int num_ffts = ceil((float)num_samples/step);
 
-    /* trim FFT's that are out of bounds */
-    // while ( num_ffts * step + NFFT > num_samples )
-    while ( (num_ffts - 1)*step + (NFFT - 1) >= num_samples)
-        num_ffts--;
+//     /* trim FFT's that are out of bounds */
+//     // while ( num_ffts * step + NFFT > num_samples )
+//     while ( (num_ffts - 1)*step + (NFFT - 1) >= num_samples)
+//         num_ffts--;
 
-    /* create vector and host output */
-    int xns_size = num_ffts * NFFT;
-    double* freqs = (double*)malloc(xns_size*sizeof(double));
-    mallocErrchk(freqs);
-    /* create device pointers */
-    float* device_samples;
-    double* device_freqs;
+//     /* create vector and host output */
+//     int xns_size = num_ffts * NFFT;
+//     double* freqs = (double*)malloc(xns_size*sizeof(double));
+//     mallocErrchk(freqs);
+//     /* create device pointers */
+//     float* device_samples;
+//     double* device_freqs;
 
-    /* allocate memory for device and shared memory */
-    gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
-    size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
+//     /* allocate memory for device and shared memory */
+//     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
+//     gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
+//     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
-    /* copy data to device and constant memory */
-    dsp::cpy_to_symbol();
-    gpuErrchk(cudaMemcpy(device_samples, &samples[0], num_samples*sizeof(float), cudaMemcpyHostToDevice));
+//     /* copy data to device and constant memory */
+//     dsp::cpy_to_symbol();
+//     gpuErrchk(cudaMemcpy(device_samples, &samples[0], num_samples*sizeof(float), cudaMemcpyHostToDevice));
 
-    /* get max threads per block and create dimensions */
-    int maxThreads = dsp::get_thread_per_block();
+//     /* get max threads per block and create dimensions */
+//     int maxThreads = dsp::get_thread_per_block();
 
-    /* set up window dimensions */
-    dim3 windowBlockDim(NFFT, 1, 1);
-    dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
+//     /* set up window dimensions */
+//     dim3 windowBlockDim(NFFT, 1, 1);
+//     dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
 
-    /* apply window */
-    dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
+//     /* apply window */
+//     dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
 
-    // Set dimensions
-    dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
-    dim3 gridDim(num_ffts, 1, 1);
+//     // Set dimensions
+//     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
+//     dim3 gridDim(num_ffts, 1, 1);
 
-    /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, mag);
+//     /* kernel invocation */
+//     dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, mag);
 
-    /* synchronize and copy data back to host */
-    gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
+//     /* synchronize and copy data back to host */
+//     gpuErrchk( cudaPeekAtLastError() );
+//     gpuErrchk( cudaDeviceSynchronize() );
 
-    /* may be an issue copying array into a 2D vector */
-    gpuErrchk(cudaMemcpy(freqs, device_freqs, xns_size*sizeof(double), cudaMemcpyDeviceToHost));
+//     /* may be an issue copying array into a 2D vector */
+//     gpuErrchk(cudaMemcpy(freqs, device_freqs, xns_size*sizeof(double), cudaMemcpyDeviceToHost));
     
-    /* free memory */
-    gpuErrchk(cudaFree(device_samples));
-    gpuErrchk(cudaFree(device_freqs));
+//     /* free memory */
+//     gpuErrchk(cudaFree(device_samples));
+//     gpuErrchk(cudaFree(device_freqs));
 
-    /* create a Matrix class instance that holds the data */
-    /*(rows are frequency bins, columns are windows) */
-    py_Matrix* ret_frequencies = new py_Matrix(NFFT, num_ffts, freqs);
-    return ret_frequencies;
-}
-
-/*
-    Description: Module to be imported by a Python file describing how each function should be interpreted
-*/
-PYBIND11_MODULE(dsp_module, module_handle) {
-    module_handle.doc() = "I'm a docstring hehe";
-    module_handle.def("get_thread_per_block", &dsp::get_thread_per_block);
-    module_handle.def("get_device_properties", &dsp::get_device_properties);
-    module_handle.def("cuFFT", &pybind_cuFFT, py::return_value_policy::copy);
-    module_handle.def("cuSTFT", [](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag) {
-        py::array out = py::cast(pybind_cuSTFT(samples, sample_rate, NFFT, noverlap, one_sided, window, mag));
-        return out;
-    }, py::arg("samples"), py::arg("sample_rate"), py::arg_v("NFFT", 1024, "int"), py::arg_v("noverlap", -1, "int"), py::arg_v("one_sided", true, "bool"), py::arg_v("window", 2,"int"), py::arg_v("mag", true, "bool"), py::return_value_policy::move);
-    module_handle.def("cuSTFT_matrix",[](vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag) {
-        return pybind_cuSTFT_matrix(samples, sample_rate, NFFT, noverlap, one_sided, window, mag);
-    }, py::arg("samples"), py::arg("sample_rate"), py::arg_v("NFFT", 1024, "int"), py::arg_v("noverlap", -1, "int"), py::arg_v("one_sided", true, "bool"), py::arg_v("window", 2,"int"), py::arg_v("mag", true, "bool"));
-    module_handle.def("test_cuda", &test_cuda);
-/* commented out but kept for reference for adding a class */
-
-//   module_handle.def("some_fn_python_name", &some_fn);
-//   module_handle.def("some_class_factory", &some_class_factory);
-//   py::class_<SomeClass>(
-// 			module_handle, "PySomeClass"
-// 			).def(py::init<float>())
-//     .def_property("multiplier", &SomeClass::get_mult, &SomeClass::set_mult)
-//     .def("multiply", &SomeClass::multiply)
-//     .def("multiply_list", &SomeClass::multiply_list)
-//     // .def_property_readonly("image", &SomeClass::make_image)
-//     .def_property_readonly("image", [](SomeClass &self) {
-// 				      py::array out = py::cast(self.make_image());
-// 				      return out;
-// 				    })
-//     // .def("multiply_two", &SomeClass::multiply_two)
-//     .def("multiply_two", [](SomeClass &self, float one, float two) {
-// 			   return py::make_tuple(self.multiply(one), self.multiply(two));
-// 			 })
-//     .def("function_that_takes_a_while", &SomeClass::function_that_takes_a_while)
-//     ;
-}
+//     /* create a Matrix class instance that holds the data */
+//     /*(rows are frequency bins, columns are windows) */
+//     py_Matrix* ret_frequencies = new py_Matrix(NFFT, num_ffts, freqs);
+//     return ret_frequencies;
+// }

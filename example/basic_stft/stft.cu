@@ -1,5 +1,5 @@
-#include "wavreader/wavread.h"
-#include "dsp/dsp.h"
+#include "wavread.h"
+#include "dsp.h"
 #include <math.h>
 #include <vector>
 #include <NumCpp.hpp>

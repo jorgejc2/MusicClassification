@@ -61,4 +61,7 @@ class py_Matrix3d {
 
 };
 
+py_Matrix c_created_data();
+py_Matrix3d c_created_3d_data();
+
 #endif // _MATRIX_PYBIND_H_
