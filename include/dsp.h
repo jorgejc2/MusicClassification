@@ -73,10 +73,6 @@ namespace dsp {
 
     __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool one_sided, bool mag);
 
-    __host__ int cuWindow(float* samples, int num_samples, int NFFT, int window);
-
-    __global__ void window_Kernel(float* samples, const int num_samples, int window);
-
     __host__ int cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int mel_filters);
 
     __host__ void preemphasis(float* samples, int num_samples, int b);

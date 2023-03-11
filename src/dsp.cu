@@ -365,13 +365,6 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
 
-    /* set up window dimensions */
-    dim3 windowBlockDim(NFFT, 1, 1);
-    dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
-
-    /* apply window */
-    dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
-
     // Set up stft dimensions
     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
     dim3 gridDim(num_ffts, 1, 1);
@@ -437,13 +430,6 @@ __host__ int dsp::cuSTFT_vector_in(vector<float> &samples, double** freqs, int s
     /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
 
-    /* set up window dimensions */
-    dim3 windowBlockDim(NFFT, 1, 1);
-    dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
-
-    /* apply window */
-    dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
-
     // Set up stft dimensions
     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
     dim3 gridDim(num_ffts, 1, 1);
@@ -508,10 +494,25 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
 
     input_idx = (unsigned int)(idx_arr[0] << 24 | idx_arr[1] << 16 | idx_arr[2] << 8 | idx_arr[3]);
     input_idx = input_idx >> (32 - bit_shift);
+
+    /* calculate windows and place into shared memory */
+    if (window == 1) {
+        w_in(tx) = (0.54 - (0.46 * cospif(2*(1.0*tx/(nfft-1)))));
+        __syncthreads();
+    }
+    else if (window == 2) {
+        w_in(tx) = (0.5 * (1 - cospif(2*(1.0*tx/(nfft-1)))));
+        __syncthreads();
+    }
     
-    /* place samples into shared memory */
-    if (tx < nfft)
-        in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx], 0.0); 
+    /* place samples into shared memory and apply windows */
+    if (tx < nfft) {
+        if (window == 0)
+            in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx], 0.0); 
+        else 
+            in(input_idx, sw) = make_cuDoubleComplex(samples[bx*step + tx] * w_in(tx), 0.0); 
+    }
+        
         
 
     /* only need half the twiddle factors since they are symmetric */
@@ -555,28 +556,19 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     double abs_in = cuCabs(in(tx, sw)); // absolute value of final output
     int one_sided_nfft = nfft / 2 + 1;
     if ((mag == true) && (tx < nfft) && (one_sided == false)) {
-        freqs[tx*num_ffts + bx] = abs_in * abs_in;
+        freqs[tx*num_ffts + bx] = sqrt(abs_in * abs_in);
         return;
     }
     else if ((mag == true) && (tx < one_sided_nfft) && (one_sided == true)) {
-        freqs[tx*num_ffts + bx] = abs_in * abs_in;
+        freqs[tx*num_ffts + bx] = sqrt(abs_in * abs_in);
         return;
     }
-
-
-    __syncthreads(); // wait for every thread to grab their result so that we can repurpose shared memory
 
     /* calculate window scaling factor */
     double window_scaling_factor = (double)nfft; // defaults to length of fft if no window was applied
 
-    if (window == 1) {
-        w_in(tx) = (0.54 - (0.46 * cospif(2*(1.0*tx/(nfft-1))))) * (0.54 - (0.46 * cospif(2*(1.0*tx/(nfft-1)))));
-    }
-    else if (window == 2) {
-        w_in(tx) = (0.5 * (1 - cospif(2*(1.0*tx/(nfft-1))))) * (0.5 * (1 - cospif(2*(1.0*tx/(nfft-1)))));
-    }
-
     if (window == 1 || window == 2) {
+        w_in(tx) = w_in(tx) * w_in(tx);
         for (unsigned int stride = nfft / 2; stride >= 1; stride /= 2) {
             __syncthreads();
             if (tx < stride)
@@ -589,10 +581,10 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     /* load final magnitude into output as a tranposed matrix (rows are frequency bins, columns are windows)*/
     if ((tx < nfft) && (one_sided == false)) 
         // freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
-        freqs[tx*num_ffts + bx] = 20.0 * log10( sqrt((2*abs_in*abs_in) / (sample_rate*window_scaling_factor)) );
+        freqs[tx*num_ffts + bx] = 10.0 * log10( sqrt((2*abs_in*abs_in) / (sample_rate*window_scaling_factor)) );
     else if ((tx < one_sided_nfft) && (one_sided == true)) 
         // freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
-        freqs[tx*num_ffts + bx] = 20.0 * log10( sqrt((2*abs_in*abs_in) / (sample_rate*window_scaling_factor)) );
+        freqs[tx*num_ffts + bx] = 10.0 * log10( sqrt((2*abs_in*abs_in) / (sample_rate*window_scaling_factor)) );
     
 
     #undef in
@@ -601,36 +593,6 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
 
 }
 
-/*
-    Description: I will create a host function later for applying a window, but for now just need the kernel for the stft
-*/
-__host__ int dsp::cuWindow(float* samples, int num_samples, int NFFT, int window) {
-    return -1;
-}
-
-__global__ void dsp::window_Kernel(float* samples, const int num_samples, int window) {
-    int tx = threadIdx.x;
-    int bx = blockIdx.x;
-    int nfft = blockDim.x;
-    int sample_idx = bx * nfft + tx;
-
-    if (sample_idx < num_samples) {
-        switch (window) {
-            case 0:
-                /* do nothing, thus this kernel was pointless */
-                samples[sample_idx] = samples[sample_idx];
-                break;
-            case 1:
-                samples[sample_idx] = samples[sample_idx] * (0.54 - (0.46 * cospif(2*(1.0*tx/(nfft-1)))));
-                break;
-            case 2:
-                samples[sample_idx] = samples[sample_idx] * 0.5 * (1 - cospif(2*(1.0*tx/(nfft-1))));
-                break;
-        }
-    }
-        
-
-}
 
 __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int mel_filters) {
 
@@ -671,17 +633,6 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
 
     /* get max threads per block and create dimensions */
     int maxThreads = dsp::get_thread_per_block();
-
-    /* only apply a window if it is not the boxcar window */
-    if (window > 0) {
-
-        /* set up window dimensions */
-        dim3 windowBlockDim(NFFT, 1, 1);
-        dim3 windowGridDim(ceil((float)num_samples/NFFT), 1, 1);
-
-        /* apply window */
-        dsp::window_Kernel<<<windowGridDim, windowBlockDim>>>(device_samples, num_samples, window);
-    }
 
     // Set up stft dimensions
     dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
