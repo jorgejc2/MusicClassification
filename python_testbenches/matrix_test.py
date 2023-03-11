@@ -153,15 +153,16 @@ class testbench():
         
         # ts = [0 for i in range (10)]
         cu_start = time()
-        result = myMatrix.DSP_Matrix(list(ts), sample_rate, nfft, noverlap, False, 0, True)
+        result = myMatrix.DSP_Matrix(list(ts), sample_rate, nfft, noverlap, True, 0, True)
         cu_end = time()
         result = np.array(result, copy=False)
         print("cuSTFT took {} ms to finish".format((cu_end - cu_start)*1000))
         print("shape of output: {}".format(result.shape))
+        print("dtype: {}".format(result.dtype))
         t_copy = np.linspace(0, len(ts)/sample_rate, result.shape[1])
         
         # calculate stft from scipy's library 
-        f, t, stft_results = scipy.signal.stft(ts, fs=sample_rate, window="boxcar", nperseg=nfft, noverlap=None if noverlap == -1 else noverlap, nfft=nfft, detrend=False, return_onesided=False, boundary=None, padded=False, axis=-1, scaling='psd')
+        f, t, stft_results = scipy.signal.stft(ts, fs=sample_rate, window="boxcar", nperseg=nfft, noverlap=None if noverlap == -1 else noverlap, nfft=nfft, detrend=False, return_onesided=True, boundary=None, padded=False, axis=-1, scaling='psd')
         # calculate power spectral density of every entry
         stft_results = np.abs(stft_results)
         stft_results = 20*np.log10(stft_results)

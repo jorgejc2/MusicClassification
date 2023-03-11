@@ -338,12 +338,13 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     int num_ffts = ceil((float)num_samples/step);
 
     /* trim FFT's that are out of bounds */
-    while ( num_ffts * step >= num_samples )
+    while ( (num_ffts - 1)*step + (NFFT - 1) >= num_samples)
         num_ffts--;
 
     /* allocate array to hold frequencies */
-    int xns_size = num_ffts * NFFT;
-    printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
+    int one_sided_nfft = NFFT / 2 + 1;
+    int xns_size = one_sided ? num_ffts* one_sided_nfft : num_ffts * NFFT;
+    // printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
     double* xns = (double*)malloc(xns_size*sizeof(double));
     mallocErrchk(xns);
 
@@ -353,7 +354,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
 
     /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, num_ffts*NFFT*sizeof(double)));
     /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
@@ -376,7 +377,7 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, mag);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, one_sided, mag);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
@@ -387,13 +388,6 @@ __host__ int dsp::cuSTFT(float* samples, double** freqs, int sample_rate, int nu
     /* free memory */
     gpuErrchk(cudaFree(device_samples));
     gpuErrchk(cudaFree(device_freqs));
-
-    /* reallocate memory if necessary */
-    if (one_sided) {
-        int one_sided_nfft = NFFT / 2 + 1;
-        xns_size = num_ffts * one_sided_nfft;
-        xns = (double*)realloc(xns, xns_size*sizeof(double));
-    }
     
     /* set user pointer */
     *freqs = xns;
@@ -414,15 +408,15 @@ __host__ int dsp::cuSTFT_vector_in(vector<float> &samples, double** freqs, int s
     int num_ffts = ceil((float)num_samples/step);
 
     /* trim FFT's that are out of bounds */
-    while ( num_ffts * step >= num_samples )
+    while ( (num_ffts - 1)*step + (NFFT - 1) >= num_samples)
         num_ffts--;
 
-    stft_dimensions.first = NFFT;
-    stft_dimensions.second = num_ffts;
-
     /* allocate array to hold frequencies */
-    int xns_size = num_ffts * NFFT;
-    printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
+    int one_sided_nfft = NFFT / 2 + 1;
+    int xns_size = one_sided ? num_ffts* one_sided_nfft : num_ffts * NFFT;
+    stft_dimensions.first = one_sided ? one_sided_nfft : NFFT;
+    stft_dimensions.second = num_ffts;
+    // printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
     double* xns = (double*)malloc(xns_size*sizeof(double));
     mallocErrchk(xns);
 
@@ -432,7 +426,7 @@ __host__ int dsp::cuSTFT_vector_in(vector<float> &samples, double** freqs, int s
 
     /* allocate memory for device and shared memory */
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, xns_size*sizeof(double)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, num_ffts*NFFT*sizeof(double)));
     /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
@@ -455,7 +449,7 @@ __host__ int dsp::cuSTFT_vector_in(vector<float> &samples, double** freqs, int s
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, mag);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, one_sided, mag);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
@@ -466,15 +460,6 @@ __host__ int dsp::cuSTFT_vector_in(vector<float> &samples, double** freqs, int s
     /* free memory */
     gpuErrchk(cudaFree(device_samples));
     gpuErrchk(cudaFree(device_freqs));
-
-    /* reallocate memory if necessary */
-    
-    if (one_sided) {
-        int one_sided_nfft = NFFT / 2 + 1;
-        stft_dimensions.first = one_sided_nfft;
-        xns_size = num_ffts * one_sided_nfft;
-        xns = (double*)realloc(xns, xns_size*sizeof(double));
-    }
 
     /* set user pointer */
     *freqs = xns;
@@ -499,7 +484,7 @@ __host__ int dsp::cuSTFT_vector_in(vector<float> &samples, double** freqs, int s
     Effects: 
         None
 */
-__global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool mag) {
+__global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool one_sided, bool mag) {
 
     int tx = threadIdx.x; // thread ID
     int bx = blockIdx.x; // block ID
@@ -568,8 +553,12 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
 
     /* return Power Spectral Density value of output */
     double abs_in = cuCabs(in(tx, sw)); // absolute value of final output
-
-    if (mag && tx < nfft) {
+    int one_sided_nfft = nfft / 2 + 1;
+    if ((mag == true) && (tx < nfft) && (one_sided == false)) {
+        freqs[tx*num_ffts + bx] = abs_in * abs_in;
+        return;
+    }
+    else if ((mag == true) && (tx < one_sided_nfft) && (one_sided == true)) {
         freqs[tx*num_ffts + bx] = abs_in * abs_in;
         return;
     }
@@ -598,9 +587,10 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
     }
     
     /* load final magnitude into output as a tranposed matrix (rows are frequency bins, columns are windows)*/
-    if (tx < nfft) 
+    if ((tx < nfft) && (one_sided == false)) 
         freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
-
+    else if ((tx < one_sided_nfft) && (one_sided == true)) 
+        freqs[tx*num_ffts + bx] = 10.0 * log10( (abs_in*abs_in) / (sample_rate*window_scaling_factor) );
     
 
     #undef in
@@ -696,7 +686,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0, true);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, 0, true, true);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );

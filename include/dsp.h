@@ -71,7 +71,7 @@ namespace dsp {
 
     __host__ int cuSTFT_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &stft_dimensions, int noverlap, bool one_sided, int window, bool mag);
 
-    __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool mag);
+    __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool one_sided, bool mag);
 
     __host__ int cuWindow(float* samples, int num_samples, int NFFT, int window);
 

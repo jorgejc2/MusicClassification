@@ -242,7 +242,7 @@ __host__ vector<vector<double>> pybind_cuSTFT(vector<float> samples, int sample_
     dim3 gridDim(num_ffts, 1, 1);
 
     /* kernel invocation */
-    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, mag);
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, one_sided, mag);
 
     /* synchronize and copy data back to host */
     gpuErrchk( cudaPeekAtLastError() );
