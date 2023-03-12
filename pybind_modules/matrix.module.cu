@@ -102,6 +102,21 @@ py_stft_Matrix::py_stft_Matrix(vector<float> samples, int sample_rate, int NFFT,
     // cout<<"cols: "<<m_cols<<endl;
 }
 
+/****************/
+/*
+    Definition of py_mfcc_Matrix class that extends py_Matrix
+*/
+/****************/
+py_mfcc_Matrix::py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps) {
+    pair<int,int> init_dimensions;
+    double** set_m_data = &m_data;
+    dsp::cuMFCC_vector_in(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, window, preemphasis_b, nfilt, num_ceps);
+    m_rows = init_dimensions.first;
+    m_cols = init_dimensions.second;
+    cout<<"rows: "<<m_rows<<endl;
+    cout<<"cols: "<<m_cols<<endl;
+}
+
 /* this is a constructor meant to be called from a c++ function, not from Python */
 py_Matrix3d::py_Matrix3d(int width, int rows, int cols) : m_width(width), m_rows(rows), m_cols(cols) {
     // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
@@ -298,6 +313,49 @@ PYBIND11_MODULE(matrix_module, module_handle) {
             })
         /// Provide buffer access
         .def_buffer([](py_stft_Matrix &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),                          /* Pointer to buffer */
+                {m.rows(), m.cols()},              /* Buffer dimensions */
+                {sizeof(double) * size_t(m.cols()), /* Strides (in bytes) for each index */
+                sizeof(double)});
+        });
+    
+    py::class_<py_mfcc_Matrix>(module_handle, "MFCC_Matrix", py::buffer_protocol())
+        // .def(py::init<py::ssize_t, py::ssize_t>())
+        .def(py::init<vector<float>, int, int, int, int, float, int, int>())
+        /// Construct from a buffer
+        .def(py::init([](const py::buffer &b) {
+            py::buffer_info info = b.request();
+            if (info.format != py::format_descriptor<double>::format() || info.ndim != 2) {
+                throw std::runtime_error("Incompatible buffer format!");
+            }
+
+            auto *v = new py_mfcc_Matrix(info.shape[0], info.shape[1]);
+            memcpy(v->data(), info.ptr, sizeof(double) * (size_t) (v->rows() * v->cols()));
+            return v;
+        }))
+
+        .def("rows", &py_mfcc_Matrix::rows)
+        .def("cols", &py_mfcc_Matrix::cols)
+        .def("shape", &py_mfcc_Matrix::shape)
+
+        /// Bare bones interface
+        .def("__getitem__",
+            [](const py_mfcc_Matrix &m, std::pair<py::ssize_t, py::ssize_t> i) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                return m(i.first, i.second);
+            })
+        .def("__setitem__",
+            [](py_mfcc_Matrix &m, std::pair<py::ssize_t, py::ssize_t> i, double v) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                m(i.first, i.second) = v;
+            })
+        /// Provide buffer access
+        .def_buffer([](py_mfcc_Matrix &m) -> py::buffer_info {
             return py::buffer_info(
                 m.data(),                          /* Pointer to buffer */
                 {m.rows(), m.cols()},              /* Buffer dimensions */

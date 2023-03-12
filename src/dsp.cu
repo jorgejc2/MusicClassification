@@ -594,7 +594,7 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
 }
 
 
-__host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int nfilt, int num_ceps) {
+__host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps) {
 
     /* apply a preemphasis filter on the samples */
     dsp::preemphasis(samples, num_samples, preemphasis_b);
@@ -757,10 +757,176 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
     return final_output_size;
 }
 
+__host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &mfcc_dimensions, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps) {
+
+    int num_samples = samples.size();
+    /* apply a preemphasis filter on the samples */
+    dsp::preemphasis(&samples[0], num_samples, preemphasis_b);
+
+    /* default noverlap */
+    if (noverlap < 0)
+        noverlap = NFFT / 2;
+
+    /* Determine how many FFT's need to be computed */
+    int step = NFFT - noverlap;
+    int num_ffts = ceil((float)num_samples/step);
+
+    /* trim FFT's that are out of bounds */
+    while ( (num_ffts - 1)*step + (NFFT - 1) >= num_samples)
+        num_ffts--;
+
+    /* allocate array to hold final output */
+    int final_output_size = num_ceps * num_ffts;
+    mfcc_dimensions.first = num_ceps;
+    mfcc_dimensions.second = num_ffts;
+    double * host_final_output = (double*)malloc(final_output_size*sizeof(double));
+    mallocErrchk(host_final_output);
+
+    /* conduct initializations for Mel Spectrum and DCT */
+    float low_freq = 0;
+    float high_freq = 2595*log10(1 + sample_rate/(2.0*700));
+    int num_bins = nfilt + 2;
+
+    float mel_step = (high_freq - low_freq) / (num_bins - 1.0);
+    int bins[num_bins];
+    float mel_point;
+    float hz_point;
+    for (int i = 0; i < num_bins; i++) {
+        mel_point = i*mel_step;
+        hz_point = 700 * ( pow(10.0, mel_point/2595) - 1);
+        bins[i] = int( (NFFT+1)*hz_point / sample_rate );
+    }
+
+    int fbank_rows = nfilt;
+    int fbank_cols = NFFT / 2 + 1;
+    /* fbank must be cast to double since stft will return double */
+    double fbank[fbank_rows*fbank_cols] = {}; // initialize to zeros
+    int f_m_minus;
+    int f_m;
+    int f_m_plus;
+
+    /* Calculate mel filter banks */
+    for (int m = 1; m < nfilt + 1; m++) {
+        f_m_minus = bins[m - 1];
+        f_m = bins[m];
+        f_m_plus = bins[m + 1];
+
+        /* in order to coalesce memory, I store the transpose of fbank*/
+        for (int k = f_m_minus; k < f_m; k++) {
+            fbank[(m-1)*fbank_cols + k] = (double)(2*(k - bins[m-1])) / (bins[m] - bins[m-1]);
+        }
+        for (int k = f_m; k < f_m_plus; k++) {
+            fbank[(m-1)*fbank_cols + k] = (double)(2*(bins[m+1]-k)) / (bins[m] - bins[m-1]);
+        }
+    }
+
+    /* calculate DCT matrix */
+    int dct_rows = num_ceps;
+    int dct_cols = nfilt;
+    double dct[dct_rows*dct_cols];
+
+    for (int n = 0; n < num_ceps; n++) {
+        for(int m = 0; m < nfilt; m++) {
+            dct[n*dct_cols + m] = cos( (m_pi*n*(m-0.5)) / nfilt);
+        }
+    } 
+
+    /* create device pointers */
+    float* device_samples;
+    double* device_freqs;
+    double* fbank_device;
+    double* dct_device;
+    double* device_output_s;
+    double* device_output_cep;
+
+    /* allocate memory for device and shared memory */
+    // int xns_size = num_ffts * (NFFT / 2 + 1);
+    // printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
+    gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, num_ffts * (NFFT / 2 + 1)*sizeof(double)));
+    /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
+    size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
+
+    /* copy data to device and constant memory */
+    gpuErrchk(cudaMemcpyToSymbol(device_reverse_table, dsp::reverse_table, REVERSE_TABLE_SIZE*sizeof(unsigned char)));
+    gpuErrchk(cudaMemcpy(device_samples, &samples[0], num_samples*sizeof(float), cudaMemcpyHostToDevice));
+
+    /* get max threads per block and create dimensions */
+    int maxThreads = dsp::get_thread_per_block();
+
+    // Set up stft dimensions
+    dim3 blockDim(maxThreads > NFFT ? NFFT : maxThreads, 1, 1);
+    dim3 gridDim(num_ffts, 1, 1);
+
+    /* kernel invocation */
+    dsp::STFT_Kernel<<<gridDim, blockDim, shmemsize>>>(device_samples, device_freqs, sample_rate, step, window, true, true);
+
+    /* synchronize and free device samples  */
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+    gpuErrchk(cudaFree(device_samples));
+
+    /* perform matrix multiplcation of signal and filter banks */
+
+    /* allocate and copy filter bank to device memory */
+    gpuErrchk(cudaMalloc((void**)&device_output_s, nfilt*num_ffts*sizeof(double)));
+    gpuErrchk(cudaMalloc((void**)&fbank_device, fbank_rows*fbank_cols*sizeof(double)));
+    gpuErrchk(cudaMemcpy(fbank_device, &fbank, fbank_rows*fbank_cols*sizeof(double), cudaMemcpyHostToDevice));
+
+    /* multiplies matrices MxK and KxN */
+    int M = nfilt; 
+    int K = NFFT / 2 + 1; 
+    int N = num_ffts; 
+    dim3 matrix_dimGrid_1(ceil(M / (1.0*TILE_SZ_A)), ceil(N / (1.0*TILE_SZ_B)), 1);
+    dim3 matrix_dimBlock_1(TILE_SZ_A, 1, 1);
+    matrixRegisterTiling<<<matrix_dimGrid_1, matrix_dimBlock_1>>>(device_output_s, fbank_device, device_freqs, M, K, N, true);
+
+    /* synchronize and free memory */
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+    gpuErrchk(cudaFree(device_freqs));
+    gpuErrchk(cudaFree(fbank_device));
+
+    /* perform matrix multiplication of DCT and log10 of signal applied with filter banks */
+
+    /* allocate and copy DCT to device memory */
+    gpuErrchk(cudaMalloc((void**)&device_output_cep, final_output_size*sizeof(double)));
+    gpuErrchk(cudaMalloc((void**)&dct_device, dct_rows*dct_cols*sizeof(double)));
+    gpuErrchk(cudaMemcpy(dct_device, &dct, dct_rows*dct_cols*sizeof(double), cudaMemcpyHostToDevice));
+    
+    /* set up dimensions */
+    M = num_ceps; 
+    K = nfilt; 
+    N = num_ffts; 
+    dim3 matrix_dimGrid_2(ceil(M / (1.0*TILE_SZ_A)), ceil(N / (1.0*TILE_SZ_B)), 1);
+    dim3 matrix_dimBlock_2(TILE_SZ_A, 1, 1);
+
+    /* second matrix multiplication kernel invocation */
+    matrixRegisterTiling<<<matrix_dimGrid_2, matrix_dimBlock_2>>>(device_output_cep, dct_device, device_output_s, M, K, N, false);
+
+    /* synchronize */
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    /* copy final result to host */
+    gpuErrchk(cudaMemcpy(host_final_output, device_output_cep, final_output_size*sizeof(double), cudaMemcpyDeviceToHost));
+
+    /* free memory */
+    gpuErrchk(cudaFree(device_output_cep));
+    gpuErrchk(cudaFree(dct_device));
+    gpuErrchk(cudaFree(device_output_s));
+    
+    /* set user pointer */
+    *freqs = host_final_output;
+   
+    /* return size of frequency array */
+    return final_output_size;
+}
+
 /*
     Description: Applies a preemphasis filter of the z-transform function, H(z) = 1 - b*z^-1
 */
-__host__ void dsp::preemphasis(float* samples, int num_samples, int b) {
+__host__ void dsp::preemphasis(float* samples, int num_samples, float b) {
 
     float prev_sample = 0.0;
     

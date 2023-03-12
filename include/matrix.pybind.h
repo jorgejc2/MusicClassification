@@ -45,6 +45,12 @@ class py_stft_Matrix : public py_Matrix {
     py_stft_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, bool one_sided, int window, bool mag);
 };
 
+class py_mfcc_Matrix : public py_Matrix {
+    public:
+    py_mfcc_Matrix(int rows, int cols) : py_Matrix::py_Matrix(rows, cols) {};
+    py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps);
+};
+
 class py_Matrix3d {
     public:
     py_Matrix3d(int width, int rows, int cols);
