@@ -13,9 +13,15 @@
 using namespace std::chrono;
 using namespace std;
 
+#define TILE_SZ_A 32
+#define TILE_SZ_B 16
+#define TILE_SZ_RATIO (TILE_SZ_A / TILE_SZ_B)
+
 typedef complex<float> dcomp;
 
 const dcomp img(0.0,1.0);
+
+const double m_pi = 3.14159265358979323846;
 
 #define REVERSE_TABLE_SIZE 256
 
@@ -73,9 +79,11 @@ namespace dsp {
 
     __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool one_sided, bool mag);
 
-    __host__ int cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int mel_filters);
+    __host__ int cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, int preemphasis_b, int nfilt, int num_ceps);
 
     __host__ void preemphasis(float* samples, int num_samples, int b);
+
+    __global__ void matrixRegisterTiling(double * __restrict__ c, const double *a, const double *b, const int M, const int K, const int N, const bool log_calc);
 
     /* if this is being used as a library, symbol copying must happen in this library */
     __host__ void cpy_to_symbol();
