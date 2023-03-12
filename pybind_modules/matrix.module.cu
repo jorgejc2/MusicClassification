@@ -111,8 +111,8 @@ py_mfcc_Matrix::py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT,
     dsp::cuMFCC_vector_in(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, window, preemphasis_b, nfilt, num_ceps);
     m_rows = init_dimensions.first;
     m_cols = init_dimensions.second;
-    cout<<"rows: "<<m_rows<<endl;
-    cout<<"cols: "<<m_cols<<endl;
+    // cout<<"rows: "<<m_rows<<endl;
+    // cout<<"cols: "<<m_cols<<endl;
 }
 
 /* this is a constructor meant to be called from a c++ function, not from Python */

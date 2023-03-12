@@ -627,7 +627,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
     float hz_point;
     for (int i = 0; i < num_bins; i++) {
         mel_point = i*mel_step;
-        hz_point = 700 * ( pow(10.0, mel_point/2595) - 1);
+        hz_point = 700 * ( pow(10.0, mel_point/2595.0) - 1);
         bins[i] = int( (NFFT+1)*hz_point / sample_rate );
     }
 
@@ -650,7 +650,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
             fbank[(m-1)*fbank_cols + k] = (double)(2*(k - bins[m-1])) / (bins[m] - bins[m-1]);
         }
         for (int k = f_m; k < f_m_plus; k++) {
-            fbank[(m-1)*fbank_cols + k] = (double)(2*(bins[m+1]-k)) / (bins[m] - bins[m-1]);
+            fbank[(m-1)*fbank_cols + k] = (double)(2*(bins[m+1]-k)) / (bins[m + 1] - bins[m]);
         }
     }
 
@@ -793,7 +793,7 @@ __host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int s
     float hz_point;
     for (int i = 0; i < num_bins; i++) {
         mel_point = i*mel_step;
-        hz_point = 700 * ( pow(10.0, mel_point/2595) - 1);
+        hz_point = 700 * ( pow(10.0, mel_point/2595.0) - 1);
         bins[i] = int( (NFFT+1)*hz_point / sample_rate );
     }
 
@@ -816,7 +816,7 @@ __host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int s
             fbank[(m-1)*fbank_cols + k] = (double)(2*(k - bins[m-1])) / (bins[m] - bins[m-1]);
         }
         for (int k = f_m; k < f_m_plus; k++) {
-            fbank[(m-1)*fbank_cols + k] = (double)(2*(bins[m+1]-k)) / (bins[m] - bins[m-1]);
+            fbank[(m-1)*fbank_cols + k] = (double)(2*(bins[m+1]-k)) / (bins[m + 1] - bins[m]);
         }
     }
 
@@ -843,7 +843,7 @@ __host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int s
     // int xns_size = num_ffts * (NFFT / 2 + 1);
     // printf("xns_size: %d, num_ffts: %d, NFFT: %d\n",xns_size, num_ffts, NFFT);
     gpuErrchk(cudaMalloc((void**)&device_samples, num_samples*sizeof(float)));
-    gpuErrchk(cudaMalloc((void**)&device_freqs, num_ffts * (NFFT / 2 + 1)*sizeof(double)));
+    gpuErrchk(cudaMalloc((void**)&device_freqs, num_ffts*(NFFT / 2 + 1)*sizeof(double)));
     /* need 2 * NFFT * cuDoubleComplex for alternating buffers that hold computations, 0.5*NFFT*cuDoubleComplex for holding twiddle factors */
     size_t shmemsize = NFFT * 2.5 * sizeof(cuDoubleComplex);
 
