@@ -79,9 +79,9 @@ namespace dsp {
 
     __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool one_sided, bool mag);
 
-    __host__ int cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps);
+    __host__ int cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq);
 
-    __host__ int cuMFCC_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &mfcc_dimensions, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps);
+    __host__ int cuMFCC_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &mfcc_dimensions, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq);
 
     __host__ void preemphasis(float* samples, int num_samples, float b);
 

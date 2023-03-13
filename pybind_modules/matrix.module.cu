@@ -105,10 +105,20 @@ py_stft_Matrix::py_stft_Matrix(vector<float> samples, int sample_rate, int NFFT,
     Definition of py_mfcc_Matrix class that extends py_Matrix
 */
 /****************/
+py_mfcc_Matrix::py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq) {
+    pair<int,int> init_dimensions;
+    double** set_m_data = &m_data;
+    dsp::cuMFCC_vector_in(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, window, preemphasis_b, nfilt, num_ceps, hz_high_freq);
+    m_rows = init_dimensions.first;
+    m_cols = init_dimensions.second;
+    // cout<<"rows: "<<m_rows<<endl;
+    // cout<<"cols: "<<m_cols<<endl;
+}
+
 py_mfcc_Matrix::py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps) {
     pair<int,int> init_dimensions;
     double** set_m_data = &m_data;
-    dsp::cuMFCC_vector_in(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, window, preemphasis_b, nfilt, num_ceps);
+    dsp::cuMFCC_vector_in(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, window, preemphasis_b, nfilt, num_ceps, sample_rate/2);
     m_rows = init_dimensions.first;
     m_cols = init_dimensions.second;
     // cout<<"rows: "<<m_rows<<endl;
@@ -320,6 +330,7 @@ PYBIND11_MODULE(matrix_module, module_handle) {
     
     py::class_<py_mfcc_Matrix>(module_handle, "MFCC_Matrix", py::buffer_protocol())
         // .def(py::init<py::ssize_t, py::ssize_t>())
+        .def(py::init<vector<float>, int, int, int, int, float, int, int, float>())
         .def(py::init<vector<float>, int, int, int, int, float, int, int>())
         /// Construct from a buffer
         .def(py::init([](const py::buffer &b) {

@@ -594,7 +594,7 @@ __global__ void dsp::STFT_Kernel(const float* samples, double* __restrict__ freq
 }
 
 
-__host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps) {
+__host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq) {
 
     /* apply a preemphasis filter on the samples */
     dsp::preemphasis(samples, num_samples, preemphasis_b);
@@ -618,7 +618,9 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
 
     /* conduct initializations for Mel Spectrum and DCT */
     float low_freq = 0;
-    float high_freq = 2595*log10(1 + sample_rate/(2.0*700));
+    // float high_freq = 2595*log10(1 + sample_rate/(2.0*700));
+    float high_freq = 2595*log10(1 + hz_high_freq/(700.0));
+
     int num_bins = nfilt + 2;
 
     float mel_step = (high_freq - low_freq) / (num_bins - 1.0);
@@ -628,7 +630,8 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
     for (int i = 0; i < num_bins; i++) {
         mel_point = i*mel_step;
         hz_point = 700 * ( pow(10.0, mel_point/2595.0) - 1);
-        bins[i] = int( (NFFT+1)*hz_point / sample_rate );
+        // bins[i] = int( (NFFT+1)*hz_point / sample_rate );
+        bins[i] = int( (NFFT+1)*hz_point / (hz_high_freq*2) );
     }
 
     int fbank_rows = nfilt;
@@ -757,7 +760,7 @@ __host__ int dsp::cuMFCC(float* samples, double** freqs, int sample_rate, int nu
     return final_output_size;
 }
 
-__host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &mfcc_dimensions, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps) {
+__host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &mfcc_dimensions, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq) {
 
     int num_samples = samples.size();
     /* apply a preemphasis filter on the samples */
@@ -784,7 +787,8 @@ __host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int s
 
     /* conduct initializations for Mel Spectrum and DCT */
     float low_freq = 0;
-    float high_freq = 2595*log10(1 + sample_rate/(2.0*700));
+    // float high_freq = 2595*log10(1 + sample_rate/(2.0*700));
+    float high_freq = 2595*log10(1 + hz_high_freq/(700.0));
     int num_bins = nfilt + 2;
 
     float mel_step = (high_freq - low_freq) / (num_bins - 1.0);
@@ -794,7 +798,8 @@ __host__ int dsp::cuMFCC_vector_in(vector<float> &samples, double** freqs, int s
     for (int i = 0; i < num_bins; i++) {
         mel_point = i*mel_step;
         hz_point = 700 * ( pow(10.0, mel_point/2595.0) - 1);
-        bins[i] = int( (NFFT+1)*hz_point / sample_rate );
+        // bins[i] = int( (NFFT+1)*hz_point / sample_rate );
+        bins[i] = int( (NFFT+1)*hz_point / (hz_high_freq*2) );
     }
 
     int fbank_rows = nfilt;
