@@ -2,21 +2,16 @@
 A personal project for creating a deep neural network for music classification
 
 ## Description
-This project is split into two phases. The first phase is collecting music files in the .wav format and getting their Power Spectral Density information using a Short Time Fourier Transform CUDA kernel. Using the STFT, it becomes feasible to extract more meaningful features from music files that will assist in its classification for the neural network. The second phase is the neural network itself which will be trained on 
-the [GTZAN](https://www.kaggle.com/datasets/andradaolteanu/gtzan-dataset-music-genre-classification) music dataset. After the training phase, the 
-neural network will hopefully be able to accurately determine the genre of any new song it gets fed. 
+
+Contrary to the title, I am focusing on creating a spoken digit recognition model. There are two phases to this. The first is implementing feature extraction in CUDA. I chose to use CUDA to reinforce my knowledge of parallel programming and hopefully get large speed up processing large data sets by utilizing the gpu on a computer. The feature extraction taking place is Mel Frequency Cepstram Coefficient (MFCC) feature extraction. This is a method for short-term voice feature extraction from audio data. An in depth description of MFCC can be found in the *mfcc_methodology.ipynb* notebook. The second phase involves using a convolutional neural network to take a processed audio file, and determine which digit was spoken in the audio file. I will be training and testing this data on the AudioMNIST dataset combined with recordings of my own voice as well as two peers. We are hoping that the model works with high accuracy (above at 90%) on our own voices, and somewhat ok accuracy on new speakers (hopefully above 60%). A discussion detailing the convolutional neural network will be described in the *recurrent_neural_network.ipynb* notebook. Unfortunately, making a robust universal model would require more complex techniques and would be an interesting problem to tackle in the future. This following article provides a good discussion on [speaker recognition](https://ieeexplore-ieee-org.proxy2.library.illinois.edu/document/7298570). 
+
+Currently I am reworking this repository for spoken digit recognition so that it can be implemented on an Android tablet as a final project my UIUC ECE 420 course. The end goal in that project is to create an app that accurately recognizes the spoken digit uttered by myself or my two peers on the project. 
+
+As I continue working on this repo, I hope to take what I learn from doing spoken digit recognition and apply it to music genre classification in the future. Potential ideas for creating a robust music genre classifcation application would be working with the GZTAN dataset and creating LSTM recurrent neural networks instead of convolutional nerual networks since music snippets would contain time frames that are temporally related. 
 
 ## Progress
-I am currently wrapping up the first phase. I have successfully been able to create CPP functions for reading .wav files and a CUDA STFT function 
-for feature extraction. With the help of Pybind11, I have also made these functions into a module that are callable from a Python file. The directory *python_testbenches/* houses python files that are meant to test each function that I turned into a Python module, crosschecked with 
-already existing functions from libraries in Python such as **Numpy** and **Scipy**. 
 
-The images below show the spectograms generated from my personal CUDA STFT kernel (top) and from Scipy's STFT function (below). As you can see, the results match and the testbenches show that my implementation is algorithimically and accurately correct. After finishing the neural network, I will revisit this kernel since it is correct, but needs additional optimizations to run faster than Scipy's STFT implementation. For these spectograms, my implementation on average takes 12 ms, and Scipy's takes 2 ms. The results can be reproduced from the *stft_introduction.ipynb* notebook. 
-
-![cu_stft](references/cuSTFT_results.png)
-
-![scipy_stft](references/stft_results.png)
-
+MFCC has been implemented in CUDA. Optimizing the CUDA code further is another task. Thanks to Pybind11, it has been seamless integrating the CUDA code as a module to be imported in Python files. This means that from a Python script, the audio files can easily be processed by invoking the CUDA commands in the backend, and then used in a neural network using frameworks such as Pytorch and Tensorflow (in this repo, I will be using Pytorch). Next steps are gathering a large data set and training a convolutional neural network following designs from various papers. 
 
 ## Setup
 
