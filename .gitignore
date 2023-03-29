@@ -14,3 +14,16 @@ OutputText/*
 
 # keep .gitkeep in OutputText folder
 !OutputText/.gitkeep
+
+# files to block from notebooks 
+SimplePitchDetectionAudioOut.wav
+
+# pytorch models
+*.pth
+
+# data sets
+AudioMNIST/
+dev_set_android_files/
+input/
+raw_voice_files/
+trimmed_voice_files/
