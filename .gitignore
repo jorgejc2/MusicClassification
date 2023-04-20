@@ -27,3 +27,6 @@ dev_set_android_files/
 input/
 raw_voice_files/
 trimmed_voice_files/
+
+# csv files
+*.csv
