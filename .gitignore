@@ -21,12 +21,18 @@ SimplePitchDetectionAudioOut.wav
 # pytorch models
 *.pth
 
+# tensor flow models
+my_model/
+*tflite
+
 # data sets
 AudioMNIST/
 dev_set_android_files/
 input/
 raw_voice_files/
 trimmed_voice_files/
+trimmed_filtered_voice_files/
+trimmed_filtered_voice_files_int16/
 
 # csv files
 *.csv
