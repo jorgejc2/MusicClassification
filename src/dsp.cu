@@ -1,4 +1,5 @@
 #include "dsp.h"
+#include <float.h> // so that i can get float epsilon
 #include <iostream>
 
 /* checks for CUDA errors */
@@ -996,10 +997,18 @@ __global__ void dsp::matrixRegisterTiling(double * __restrict__ c, //<! [out] an
     }
     __syncthreads();
   }
-
+  
+  double temp;
   for (unsigned int outIdx = 0; outIdx < TILE_SZ_B; ++outIdx) {
     if (row < M && col + outIdx < N) {
-      C(row, col + outIdx) = log_calc ? log10(c_reg[outIdx]) : c_reg[outIdx];
+        if (log_calc) {
+            /* Check if the value is 0. If it is, take the log10 of epsilong for numerical stability */
+            temp = c_reg[outIdx];
+            C(row, col + outIdx) = (temp == 0.0) ? log10(FLT_EPSILON) : log10(temp);
+        }
+        else {
+            C(row, col + outIdx) = c_reg[outIdx];
+        }
     }
   }
 

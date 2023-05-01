@@ -12,6 +12,10 @@ using std::endl;
 using std::fstream;
 using std::string;
 
+/* More information about the wav header struct here
+ * http://soundfile.sapp.org/doc/WaveFormat/
+*/
+
 typedef struct  WAV_HEADER
     {
         /* RIFF Chunk Descriptor */
