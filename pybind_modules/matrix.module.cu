@@ -1,5 +1,10 @@
 #include "matrix.pybind.h"
 
+/****************/
+/*
+    Original py_Matrix
+*/
+/****************/
 py_Matrix::py_Matrix() {
     m_rows = 0;
     m_cols = 0;
@@ -89,6 +94,93 @@ py::tuple py_Matrix::shape() const { return py::make_tuple(m_rows, m_cols); }
 
 /****************/
 /*
+    float type of py_Matrix
+*/
+/****************/
+py_Matrix_float::py_Matrix_float() {
+    m_rows = 0;
+    m_cols = 0;
+    m_data = nullptr;
+}
+/* this is a constructor meant to be called from a c++ function, not from Python */
+py_Matrix_float::py_Matrix_float(int rows, int cols) : m_rows(rows), m_cols(cols) {
+    // print_created(this, std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
+    // m_data = new double[(size_t) (rows * cols)];
+    m_data = (float*)malloc(rows*cols*sizeof(float));
+    memset(m_data, 0, sizeof(float) * (size_t) (rows * cols));
+}
+
+py_Matrix_float::py_Matrix_float(int rows, int cols, float* data) : m_rows(rows), m_cols(cols) {
+    m_data = data;
+}
+
+py_Matrix_float::py_Matrix_float(const py_Matrix_float &s) : m_rows(s.m_rows), m_cols(s.m_cols) {
+    // print_copy_created(this,
+    //                     std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
+    // m_data = new float[(size_t) (m_rows * m_cols)];
+    m_data = (float*)malloc(m_rows*m_cols*sizeof(float));
+    memcpy(m_data, s.m_data, sizeof(float) * (size_t) (m_rows * m_cols));
+}
+
+py_Matrix_float::py_Matrix_float(py_Matrix_float &&s) noexcept : m_rows(s.m_rows), m_cols(s.m_cols), m_data(s.m_data) {
+    // print_move_created(this);
+    s.m_rows = 0;
+    s.m_cols = 0;
+    s.m_data = nullptr;
+}
+
+py_Matrix_float::~py_Matrix_float() {
+    // print_destroyed(this,
+    //                 std::to_string(m_rows) + "x" + std::to_string(m_cols) + " matrix");
+    // delete[] m_data;
+    free(m_data);
+}
+
+py_Matrix_float& py_Matrix_float::operator=(const py_Matrix_float &s) {
+    if (this == &s) {
+        return *this;
+    }
+
+    free(m_data);
+    m_rows = s.m_rows;
+    m_cols = s.m_cols;
+    m_data = (float*)malloc(m_rows*m_cols*sizeof(float));
+    memcpy(m_data, s.m_data, sizeof(float) * (size_t) (m_rows * m_cols));
+    return *this;
+}
+
+py_Matrix_float& py_Matrix_float::operator=(py_Matrix_float &&s) noexcept {
+
+    if (&s != this) {
+        free(m_data);
+        m_rows = s.m_rows;
+        m_cols = s.m_cols;
+        m_data = s.m_data;
+        s.m_rows = 0;
+        s.m_cols = 0;
+        s.m_data = nullptr;
+    }
+    return *this;
+}
+
+float py_Matrix_float::operator()(int i, int j) const {
+    return m_data[(size_t) (i * m_cols + j)];
+}
+
+float &py_Matrix_float::operator()(int i, int j) {
+    return m_data[(size_t) (i * m_cols + j)];
+}
+
+float *py_Matrix_float::data() { return m_data; }
+
+py::ssize_t py_Matrix_float::rows() const { return m_rows; }
+py::ssize_t py_Matrix_float::cols() const { return m_cols; }
+py::tuple py_Matrix_float::shape() const { return py::make_tuple(m_rows, m_cols); }
+
+/****************/
+/*
     Definition of py_stft_Matrix class that extends py_Matrix
 */
 /****************/
@@ -123,6 +215,29 @@ py_mfcc_Matrix::py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT,
     m_cols = init_dimensions.second;
     // cout<<"rows: "<<m_rows<<endl;
     // cout<<"cols: "<<m_cols<<endl;
+}
+
+
+/****************/
+/*
+    Definition of py_mfcc_Matrix_float class that extends py_Matrix_float
+*/
+/****************/
+py_mfcc_Matrix_float::py_mfcc_Matrix_float(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq) {
+    pair<int,int> init_dimensions;
+    float** set_m_data = &m_data;
+    dsp::cuMFCC_vector_in_float(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, window, preemphasis_b, nfilt, num_ceps, hz_high_freq);
+    m_rows = init_dimensions.first;
+    m_cols = init_dimensions.second;
+}
+
+py_mfcc_Matrix_float::py_mfcc_Matrix_float(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps) {
+    pair<int,int> init_dimensions;
+    float** set_m_data = &m_data;
+    dsp::cuMFCC_vector_in_float(samples, set_m_data, sample_rate, NFFT, init_dimensions, noverlap, window, preemphasis_b, nfilt, num_ceps, sample_rate/2);
+    m_rows = init_dimensions.first;
+    m_cols = init_dimensions.second;
+
 }
 
 /* this is a constructor meant to be called from a c++ function, not from Python */
@@ -285,6 +400,48 @@ PYBIND11_MODULE(matrix_module, module_handle) {
                 sizeof(double)});
         });
 
+    py::class_<py_Matrix_float>(module_handle, "Matrix_float", py::buffer_protocol())
+        .def(py::init<py::ssize_t, py::ssize_t>())
+        /// Construct from a buffer
+        .def(py::init([](const py::buffer &b) {
+            py::buffer_info info = b.request();
+            if (info.format != py::format_descriptor<float>::format() || info.ndim != 2) {
+                throw std::runtime_error("Incompatible buffer format!");
+            }
+
+            auto *v = new py_Matrix_float(info.shape[0], info.shape[1]);
+            memcpy(v->data(), info.ptr, sizeof(float) * (size_t) (v->rows() * v->cols()));
+            return v;
+        }))
+
+        .def("rows", &py_Matrix_float::rows)
+        .def("cols", &py_Matrix_float::cols)
+        .def("shape", &py_Matrix_float::shape)
+
+        /// Bare bones interface
+        .def("__getitem__",
+            [](const py_Matrix_float &m, std::pair<py::ssize_t, py::ssize_t> i) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                return m(i.first, i.second);
+            })
+        .def("__setitem__",
+            [](py_Matrix_float &m, std::pair<py::ssize_t, py::ssize_t> i, float v) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                m(i.first, i.second) = v;
+            })
+        /// Provide buffer access
+        .def_buffer([](py_Matrix_float &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),                          /* Pointer to buffer */
+                {m.rows(), m.cols()},              /* Buffer dimensions */
+                {sizeof(float) * size_t(m.cols()), /* Strides (in bytes) for each index */
+                sizeof(float)});
+        });
+
     py::class_<py_stft_Matrix>(module_handle, "DSP_Matrix", py::buffer_protocol())
         // .def(py::init<py::ssize_t, py::ssize_t>())
         .def(py::init<vector<float>, int, int, int, bool, int, bool>())
@@ -372,6 +529,50 @@ PYBIND11_MODULE(matrix_module, module_handle) {
                 sizeof(double)});
         });
 
+        py::class_<py_mfcc_Matrix_float>(module_handle, "MFCC_Matrix_float", py::buffer_protocol())
+        // .def(py::init<py::ssize_t, py::ssize_t>())
+        .def(py::init<vector<float>, int, int, int, int, float, int, int, float>())
+        .def(py::init<vector<float>, int, int, int, int, float, int, int>())
+        /// Construct from a buffer
+        .def(py::init([](const py::buffer &b) {
+            py::buffer_info info = b.request();
+            if (info.format != py::format_descriptor<float>::format() || info.ndim != 2) {
+                throw std::runtime_error("Incompatible buffer format!");
+            }
+
+            auto *v = new py_mfcc_Matrix_float(info.shape[0], info.shape[1]);
+            memcpy(v->data(), info.ptr, sizeof(float) * (size_t) (v->rows() * v->cols()));
+            return v;
+        }))
+
+        .def("rows", &py_mfcc_Matrix_float::rows)
+        .def("cols", &py_mfcc_Matrix_float::cols)
+        .def("shape", &py_mfcc_Matrix_float::shape)
+
+        /// Bare bones interface
+        .def("__getitem__",
+            [](const py_mfcc_Matrix_float &m, std::pair<py::ssize_t, py::ssize_t> i) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                return m(i.first, i.second);
+            })
+        .def("__setitem__",
+            [](py_mfcc_Matrix_float &m, std::pair<py::ssize_t, py::ssize_t> i, float v) {
+                if (i.first >= m.rows() || i.second >= m.cols()) {
+                    throw py::index_error();
+                }
+                m(i.first, i.second) = v;
+            })
+        /// Provide buffer access
+        .def_buffer([](py_mfcc_Matrix_float &m) -> py::buffer_info {
+            return py::buffer_info(
+                m.data(),                          /* Pointer to buffer */
+                {m.rows(), m.cols()},              /* Buffer dimensions */
+                {sizeof(float) * size_t(m.cols()), /* Strides (in bytes) for each index */
+                sizeof(float)});
+        });
+
     py::class_<py_Matrix3d>(module_handle, "Matrix3d", py::buffer_protocol())
         .def(py::init<py::ssize_t, py::ssize_t, py::ssize_t>())
         /// Construct from a buffer
@@ -417,43 +618,3 @@ PYBIND11_MODULE(matrix_module, module_handle) {
     module_handle.def("c_return_data", &c_created_data);
     module_handle.def("c_return_3d_data", &c_created_3d_data);
 }
-
-/*
-    Description: Module to be imported by a Python file describing how each function should be interpreted
-*/
-// PYBIND11_MODULE(matrix_module, module_handle) {
-//     module_handle.doc() = "I'm a docstring hehe";
-//     py::class_<py_Matrix>(module_handle, "py_Matrix", py::buffer_protocol())
-//    .def_buffer([](py_Matrix &m) -> py::buffer_info {
-//         return py::buffer_info(
-//             m.data(),                               /* Pointer to buffer */
-//             sizeof(float),                          /* Size of one scalar */
-//             py::format_descriptor<float>::format(), /* Python struct-style format descriptor */
-//             2,                                      /* Number of dimensions */
-//             { m.rows(), m.cols() },                 /* Buffer dimensions */
-//             { sizeof(float) * m.cols(),             /* Strides (in bytes) for each index */
-//               sizeof(float) }
-//         );
-//     });
-// /* commented out but kept for reference for adding a class */
-
-// //   module_handle.def("some_fn_python_name", &some_fn);
-// //   module_handle.def("some_class_factory", &some_class_factory);
-// //   py::class_<SomeClass>(
-// // 			module_handle, "PySomeClass"
-// // 			).def(py::init<float>())
-// //     .def_property("multiplier", &SomeClass::get_mult, &SomeClass::set_mult)
-// //     .def("multiply", &SomeClass::multiply)
-// //     .def("multiply_list", &SomeClass::multiply_list)
-// //     // .def_property_readonly("image", &SomeClass::make_image)
-// //     .def_property_readonly("image", [](SomeClass &self) {
-// // 				      py::array out = py::cast(self.make_image());
-// // 				      return out;
-// // 				    })
-// //     // .def("multiply_two", &SomeClass::multiply_two)
-// //     .def("multiply_two", [](SomeClass &self, float one, float two) {
-// // 			   return py::make_tuple(self.multiply(one), self.multiply(two));
-// // 			 })
-// //     .def("function_that_takes_a_while", &SomeClass::function_that_takes_a_while)
-// //     ;
-// }

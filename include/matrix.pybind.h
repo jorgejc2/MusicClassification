@@ -39,6 +39,30 @@ class py_Matrix {
 
 };
 
+class py_Matrix_float {
+    public:
+    py_Matrix_float();
+    explicit py_Matrix_float(int rows, int cols);
+    py_Matrix_float(int rows, int cols, float* data);
+    py_Matrix_float(const py_Matrix_float &s);
+    py_Matrix_float(py_Matrix_float &&s) noexcept;
+    ~py_Matrix_float();
+    py_Matrix_float &operator=(const py_Matrix_float &s);
+    py_Matrix_float &operator=(py_Matrix_float &&s) noexcept;
+    float operator()(int i, int j) const;
+    float &operator()(int i, int j);
+    float *data();
+    py::ssize_t rows() const;
+    py::ssize_t cols() const;
+    py::tuple shape() const;
+
+    protected:
+    py::size_t m_rows;
+    py::size_t m_cols;
+    float *m_data;
+
+};
+
 class py_stft_Matrix : public py_Matrix {
     public:
     py_stft_Matrix(int rows, int cols) : py_Matrix::py_Matrix(rows, cols) {};
@@ -50,6 +74,13 @@ class py_mfcc_Matrix : public py_Matrix {
     py_mfcc_Matrix(int rows, int cols) : py_Matrix::py_Matrix(rows, cols) {};
     py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq);
     py_mfcc_Matrix(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps);
+};
+
+class py_mfcc_Matrix_float : public py_Matrix_float {
+    public:
+    py_mfcc_Matrix_float(int rows, int cols) : py_Matrix_float::py_Matrix_float(rows, cols) {};
+    py_mfcc_Matrix_float(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq);
+    py_mfcc_Matrix_float(vector<float> samples, int sample_rate, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps);
 };
 
 class py_Matrix3d {

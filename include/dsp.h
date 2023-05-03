@@ -23,6 +23,8 @@ const dcomp img(0.0,1.0);
 
 const double m_pi = 3.14159265358979323846;
 
+const float m_pif = 3.14159274101257324219;
+
 #define REVERSE_TABLE_SIZE 256
 
 __constant__ unsigned char device_reverse_table[REVERSE_TABLE_SIZE];
@@ -79,13 +81,19 @@ namespace dsp {
 
     __global__ void STFT_Kernel(const float* samples, double* __restrict__ freqs, int sample_rate, int step, int window, bool one_sided, bool mag);
 
+    __global__ void STFT_Kernel_Float(const float* samples, float* __restrict__ freqs, int sample_rate, int step, int window, bool one_sided, bool mag);
+
     __host__ int cuMFCC(float* samples, double** freqs, int sample_rate, int num_samples, int NFFT, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq);
 
     __host__ int cuMFCC_vector_in(vector<float> &samples, double** freqs, int sample_rate, int NFFT, pair<int,int> &mfcc_dimensions, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq);
 
+    __host__ int cuMFCC_vector_in_float(vector<float> &samples, float** freqs, int sample_rate, int NFFT, pair<int,int> &mfcc_dimensions, int noverlap, int window, float preemphasis_b, int nfilt, int num_ceps, float hz_high_freq);
+
     __host__ void preemphasis(float* samples, int num_samples, float b);
 
     __global__ void matrixRegisterTiling(double * __restrict__ c, const double *a, const double *b, const int M, const int K, const int N, const bool log_calc);
+
+    __global__ void matrixRegisterTilingFloat(float * __restrict__ c, const float *a, const float *b, const int M, const int K, const int N, const bool log_calc);
 
     /* if this is being used as a library, symbol copying must happen in this library */
     __host__ void cpy_to_symbol();
