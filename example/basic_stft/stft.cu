@@ -2,7 +2,7 @@
 #include "dsp.h"
 #include <math.h>
 #include <vector>
-#include <NumCpp.hpp>
+// #include <NumCpp.hpp>
 using namespace std;
 
 #define IMPLEMENTATION 4  // 1: cpu FFT 2: cuda FFT 3: cpu STFT 4: cuda STFT
@@ -35,9 +35,25 @@ int main(int argc, char* argv[])
     int freq3 = 1336;
 
     /* Generate samples using NumCPP */
-    nc::NdArray<float> lin_freq1 = nc::linspace<float>(0, M_PI*2*freq1, sample_rate);
-    nc::NdArray<float> lin_freq2 = nc::linspace<float>(0, M_PI*2*freq2, sample_rate);
-    nc::NdArray<float> lin_freq3 = nc::linspace<float>(0, M_PI*2*freq3, sample_rate);
+    // nc::NdArray<float> lin_freq1 = nc::linspace<float>(0, M_PI*2*freq1, sample_rate);
+    // nc::NdArray<float> lin_freq2 = nc::linspace<float>(0, M_PI*2*freq2, sample_rate);
+    // nc::NdArray<float> lin_freq3 = nc::linspace<float>(0, M_PI*2*freq3, sample_rate);
+
+    /* Generate samples using same algorithm as Python Numpy's linspace */
+    vector<float> lin_freq1(sample_rate, 0);
+    vector<float> lin_freq2(sample_rate, 0);
+    vector<float> lin_freq3(sample_rate, 0);
+    float delta1 = (M_PI*2*freq1) / (sample_rate - 1);
+    float delta2 = (M_PI*2*freq2) / (sample_rate - 1);
+    float delta3 = (M_PI*2*freq3) / (sample_rate - 1);
+    lin_freq1[sample_rate - 1] = M_PI*2*freq1;
+    lin_freq2[sample_rate - 1] = M_PI*2*freq2;
+    lin_freq3[sample_rate - 1] = M_PI*2*freq3;
+    for (int i = 1; i < sample_rate - 1; i++) {
+        lin_freq1[i] = delta1*i;
+        lin_freq2[i] = delta2*i;
+        lin_freq3[i] = delta3*i;
+    }
 
     /* fill a vector with the samples */
     vector<float>nc_ts(nc_ts_size, 0.0);

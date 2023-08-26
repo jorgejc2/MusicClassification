@@ -29,29 +29,29 @@ inline void mallocAssert(void* pointer, const char *file, int line, bool abort=t
                  have the same runtime as a radix-2 FFt (O(nlogn)) and is also serial. This function is also most 
                  implemented incorrectly.
 */
-__host__ int dsp::DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT) {
-    int ts_size = ts->size();
-    for (int n = 0; n < ts_size/2; n++) {
-            dcomp a = 0;
-            float calc = 0.0;
+// __host__ int dsp::DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT) {
+//     int ts_size = ts->size();
+//     for (int n = 0; n < ts_size/2; n++) {
+//             dcomp a = 0;
+//             float calc = 0.0;
 
-            dcomp curr_n = n;
-            dcomp curr_NFFT = NFFT;
-            dcomp curr_pi = M_PI;
-            dcomp two = 2;
+//             dcomp curr_n = n;
+//             dcomp curr_NFFT = NFFT;
+//             dcomp curr_pi = M_PI;
+//             dcomp two = 2;
 
-            for (int k = 0; k < NFFT; k++) {
-                dcomp curr_ts = (*ts)[ts_offset + k];
-                dcomp curr_ks = (*ks)[k];
-                a += curr_ts * exp((img * two * curr_pi * curr_ks * curr_n)/curr_NFFT);
-            }
+//             for (int k = 0; k < NFFT; k++) {
+//                 dcomp curr_ts = (*ts)[ts_offset + k];
+//                 dcomp curr_ks = (*ks)[k];
+//                 a += curr_ts * exp((img * two * curr_pi * curr_ks * curr_n)/curr_NFFT);
+//             }
 
-            calc = 10*log10(abs(a)*2);
+//             calc = 10*log10(abs(a)*2);
 
-            (*xns)[n] = calc;
-    }
-    return -1;
-}
+//             (*xns)[n] = calc;
+//     }
+//     return -1;
+// }
 
 /*
     Description: This is a serial CPU implementation of the FFT with a runtime of O(nlogn)

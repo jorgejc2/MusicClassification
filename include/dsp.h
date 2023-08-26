@@ -1,7 +1,7 @@
 #ifndef _DSP_H_
 #define _DSP_H_
 
-#include <NumCpp.hpp>
+// #include <NumCpp.hpp>
 #include <vector>
 #include <complex>
 #include <cmath>
@@ -65,7 +65,7 @@ namespace dsp {
         0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
     };
 
-    __host__ int DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT);
+    // __host__ int DFT_slow(vector<float> *ts, nc::NdArray<int> *ks, vector<float> *xns, int ts_offset, int NFFT);
 
     __host__ void FFT(const float* samples, complex<double>* freqs, const int num_samples);
 
